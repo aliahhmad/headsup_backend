@@ -106,6 +106,88 @@ SMTP, and secret settings in the backend host's environment.
 In Vercel, the frontend uses `VITE_API_URL=https://headsup-api.aliahhmad.dev`.
 Redeploy the frontend after setting that build-time variable.
 
+## SMTP verification emails
+
+Registration already sends an email containing a verification link. The current
+sender uses an authenticated Amazon SES Mail Manager SMTP endpoint on port 587
+with STARTTLS. Set these values in `.env` (or the deployed backend environment):
+
+```dotenv
+MAIL_USERNAME=<your SMTP username>
+MAIL_PASSWORD='<your SMTP password>'
+MAIL_FROM=headsup@notify.aliahhmad.dev
+MAIL_FROM_NAME="HeadsUp"
+MAIL_SERVER=<your AWS SMTP endpoint>
+MAIL_PORT=587
+MAIL_STARTTLS=True
+MAIL_SSL_TLS=False
+MAIL_USE_CREDENTIALS=True
+MAIL_VALIDATE_CERTS=True
+```
+
+Use the plaintext username and password fields from the SMTP credentials export;
+the SMTP client handles Base64 encoding. Single-quote the password in `.env` to
+preserve special characters. Keep credentials in the ignored `.env` file or the
+hosting service's secrets. `BASE_URL` must be the reachable API URL because it is
+used to build the verification link.
+
+Mail Manager must have a rule that sends accepted messages to their recipients,
+such as [Send to internet](https://docs.aws.amazon.com/ses/latest/dg/eb-rules.html),
+and an execution role permitted to send using the verified SES sender identity.
+Successful SMTP authentication alone does not confirm inbox delivery.
+
+Restart the host API process after changing `.env`. For Docker, recreate the API
+container from this directory so it loads the new environment:
+
+```bash
+docker compose up -d --no-deps --force-recreate api
+docker compose logs -f --tail 100 api
+```
+
+Register a new account through the frontend, open the email in that account's
+inbox (check spam too), and click the verification link within 10 minutes. CLI
+accounts are already verified and do not send this email.
+
+To return to Mailpit, use the local-development mail settings above. When the API
+runs inside Docker, set `MAIL_SERVER=mailpit`; when it runs on the host, use
+`MAIL_SERVER=127.0.0.1`. Docker reads the mail settings from `.env` without
+overriding the selected SMTP server.
+
+## Email templates
+
+Emails use the website's navy, blue, teal, and amber palette, with a shared layout
+in `app/templates/email/base.html`. Layout tables, inline styles, system fonts,
+Outlook button fallbacks, and responsive spacing keep them readable without
+external fonts or images. Every template has a plain-text alternative.
+
+| Template | Purpose | Status |
+| --- | --- | --- |
+| `welcome.html` | Email verification, with a 10-minute link | Sent during registration; also used by the resend helper |
+| `password_reset.html` | Password recovery, with a 30-minute link | Sent by forgot-password |
+| `password_changed.html` | Security confirmation and recovery link | Ready to use; no automatic trigger |
+| `notification.html` | General account updates with an optional action | Ready to use; no automatic trigger |
+
+`EmailManager.template_send` adds the frontend URL and current year, and sends
+HTML plus plain text when a matching `.txt` template exists. Existing custom
+templates without a plain-text counterpart still work. Names and message text
+are escaped in HTML.
+
+For a general notification, supply `message` in the template body. Optionally
+supply `name`, `heading`, `preview_text`, `category`, `introduction`, `action_url`,
+and `action_label`. Use a trusted HTTPS URL for actions. Password-change emails
+need the recipient's `name`; the recovery action uses `FRONTEND_URL`.
+
+Preview all four designs with sample data, without sending any email:
+
+```bash
+uv run python scripts/preview_emails.py
+```
+
+Open the printed `index.html` path to switch between templates, HTML/plain text,
+and desktop/mobile widths. Pass `--output <directory>` to choose the destination.
+Preview links contain dummy tokens. Rendering in real email clients can differ
+from a browser preview.
+
 ## Docker resources
 
 | Resource | Name |

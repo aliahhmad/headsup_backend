@@ -23,3 +23,5 @@ class MyUserResponse(UserBase):
 
     first_name: str = Field(examples=[ExampleUser.first_name])
     last_name: str = Field(examples=[ExampleUser.last_name])
+    id: int = Field(examples=[ExampleUser.id])
+    role: RoleType = Field(examples=[ExampleUser.role])

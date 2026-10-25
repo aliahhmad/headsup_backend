@@ -1,0 +1,20 @@
+{% autoescape false %}HEADSUP · VERIFY YOUR EMAIL
+
+Hi{% if name|default('') %} {{ name }}{% else %} there{% endif %},
+
+Thanks for joining HeadsUp. Confirm your email address to finish setting up your account and sign in.
+{% if user|default('') %}
+Your email address: {{ user }}
+{% endif %}
+Verify email address:
+{{ base_url.rstrip('/') }}/verify?code={{ verification|urlencode }}
+
+For your security, this link expires in 10 minutes.
+
+Didn't create an account? You can safely ignore this email. No action is needed.
+
+The HeadsUp team
+Less checking. More living.
+{% if frontend_url|default('') %}
+Visit HeadsUp: {{ frontend_url }}
+{% endif %}{% endautoescape %}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -94,16 +95,36 @@ class EmailManager:
         self, backgroundtasks: BackgroundTasks, email_data: EmailTemplateSchema
     ) -> None:
         """Send an email using a Jinja Template."""
+        settings = get_settings()
+        template_body = {
+            "application": settings.api_title,
+            "base_url": settings.base_url,
+            "frontend_url": settings.frontend_url or settings.base_url,
+            "year": datetime.now(UTC).year,
+            **email_data.body,
+        }
         message = MessageSchema(
             subject=email_data.subject,
             recipients=email_data.recipients,
             subtype=MessageType.html,
-            template_body=email_data.body,
+            template_body=template_body,
         )
         fm = FastMail(self.conf)
-        backgroundtasks.add_task(
-            fm.send_message, message, template_name=email_data.template_name
-        )
+        plain_template = str(Path(email_data.template_name).with_suffix(".txt"))
+        if (
+            self.conf.TEMPLATE_FOLDER
+            and (self.conf.TEMPLATE_FOLDER / plain_template).is_file()
+        ):
+            backgroundtasks.add_task(
+                fm.send_message,
+                message,
+                html_template=email_data.template_name,
+                plain_template=plain_template,
+            )
+        else:
+            backgroundtasks.add_task(
+                fm.send_message, message, template_name=email_data.template_name
+            )
 
         recipients = ", ".join(r.email for r in email_data.recipients)
         category_logger.info(

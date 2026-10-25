@@ -50,11 +50,12 @@ class TestUserRoutes:
     # ------------------------------------------------------------------------ #
     #                            test profile route                            #
     # ------------------------------------------------------------------------ #
+    @pytest.mark.parametrize("admin", [False, True])
     async def test_get_my_profile(
-        self, client: AsyncClient, test_db: AsyncSession
+        self, client: AsyncClient, test_db: AsyncSession, *, admin: bool
     ) -> None:
         """Test we can get the current users profile."""
-        test_user = User(**self.get_test_user())
+        test_user = User(**self.get_test_user(admin=admin))
         test_db.add(test_user)
         await test_db.commit()
         token = AuthManager.encode_token(test_user)
@@ -64,7 +65,13 @@ class TestUserRoutes:
         )
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.json()) == 3  # noqa: PLR2004
+        assert response.json() == {
+            "email": test_user.email,
+            "first_name": test_user.first_name,
+            "last_name": test_user.last_name,
+            "id": test_user.id,
+            "role": "admin" if admin else "user",
+        }
 
     async def test_get_my_profile_no_auth(
         self, client: AsyncClient, test_db: AsyncSession
@@ -949,6 +956,8 @@ class TestUserRoutes:
             "email": "new@example.com",
             "first_name": "new_name",
             "last_name": "new_surname",
+            "id": normal_model.id,
+            "role": "user",
         }
 
     async def test_user_cant_change_others_details(

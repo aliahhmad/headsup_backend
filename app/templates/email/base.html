@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>{% block title %}A heads-up for you{% endblock %} · HeadsUp</title>
+  <!-- Essential styling is inline; these rules improve small-screen layouts. -->
+  <style>
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; }
+    @media only screen and (max-width: 600px) {
+      .email-shell { padding: 20px 12px !important; }
+      .email-header { padding: 30px 26px !important; }
+      .email-content { padding: 30px 26px !important; }
+      .email-title { font-size: 29px !important; line-height: 36px !important; }
+      .email-button { display: block !important; text-align: center !important; }
+      .email-footer { padding: 24px 16px !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; width: 100%; background-color: #f8fafc; color: #0f172a; font-family: Arial, Helvetica, sans-serif;">
+  <div style="display: none; font-size: 1px; line-height: 1px; color: #f8fafc; max-height: 0; max-width: 0; opacity: 0; overflow: hidden; mso-hide: all;">{% block preheader %}A little peace of mind from HeadsUp.{% endblock %}</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#f8fafc" style="width: 100%; background-color: #f8fafc;">
+    <tr>
+      <td class="email-shell" align="center" style="padding: 48px 20px;">
+        <!--[if mso]><table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0"><tr><td><![endif]-->
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width: 100%; max-width: 600px;">
+          <tr>
+            <td class="email-header" bgcolor="#0f172a" style="background-color: #0f172a; padding: 38px 42px; border-radius: 16px 16px 0 0;">
+              <p style="margin: 0 0 34px; font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -1.4px; color: #f8fafc;">heads<span style="font-weight: 400;">up</span><span style="color: #f59e0b;">.</span></p>
+              <p style="margin: 0 0 14px; font-size: 10px; line-height: 16px; font-weight: 700; letter-spacing: 2px; color: #5eead4;">{% block eyebrow %}YOUR HEADSUP ACCOUNT{% endblock %}</p>
+              <h1 class="email-title" style="margin: 0; font-size: 34px; line-height: 42px; font-weight: 600; letter-spacing: -1.2px; color: #f8fafc;">{% block headline %}A little peace of mind.{% endblock %}</h1>
+              <p style="margin: 16px 0 0; font-size: 14px; line-height: 24px; color: #cbd5e1;">{% block introduction %}The information you need, right when you need it.{% endblock %}</p>
+            </td>
+          </tr>
+          <tr>
+            <td class="email-content" bgcolor="#ffffff" style="background-color: #ffffff; padding: 38px 42px; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; border-radius: 0 0 16px 16px;">
+              <p style="margin: 0 0 20px; font-size: 15px; line-height: 25px; color: #0f172a;">Hi{% if name|default('') %} {{ name }}{% else %} there{% endif %},</p>
+              {% block content %}{% endblock %}
+              {% if action_url|default('') %}
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width: 100%; margin: 28px 0 24px;">
+                <tr><td align="left">
+                  <!--[if mso]>
+                  <v:roundrect href="{{ action_url }}" style="height: 48px; v-text-anchor: middle; width: 240px;" arcsize="15%" stroke="f" fillcolor="#4361ee">
+                    <w:anchorlock/>
+                    <center style="color: #ffffff; font-family: Arial, sans-serif; font-size: 14px; font-weight: bold;">{{ action_label|default('Open HeadsUp') }}</center>
+                  </v:roundrect>
+                  <![endif]-->
+                  <!--[if !mso]><!-->
+                  <a class="email-button" href="{{ action_url }}" style="display: inline-block; background-color: #4361ee; border: 1px solid #4361ee; border-radius: 7px; padding: 15px 26px; font-size: 14px; line-height: 18px; font-weight: 700; color: #ffffff; text-decoration: none; mso-hide: all;">{{ action_label|default('Open HeadsUp') }} <span aria-hidden="true" style="padding-left: 12px;">&rarr;</span></a>
+                  <!--<![endif]-->
+                </td></tr>
+              </table>
+              {% endif %}
+              {% if expiry_text|default('') %}<p style="margin: 0 0 24px; font-size: 12px; line-height: 20px; color: #0f766e;">{{ expiry_text }}</p>{% endif %}
+              {% block note %}{% endblock %}
+              {% if action_url|default('') %}
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width: 100%; margin-top: 28px; border-top: 1px solid #e2e8f0;">
+                <tr><td style="padding-top: 24px;">
+                  <p style="margin: 0 0 8px; font-size: 11px; line-height: 19px; color: #64748b;">Button not working? Copy and paste this link into your browser:</p>
+                  <p style="margin: 0; font-size: 11px; line-height: 19px; word-break: break-all; overflow-wrap: anywhere;"><a href="{{ action_url }}" style="color: #4361ee; text-decoration: underline; word-break: break-all;">{{ action_url }}</a></p>
+                </td></tr>
+              </table>
+              {% endif %}
+              <p style="margin: 30px 0 0; font-size: 13px; line-height: 23px; color: #64748b;">A little peace of mind,<br><strong style="color: #0f172a; font-weight: 600;">The HeadsUp team</strong></p>
+            </td>
+          </tr>
+          <tr>
+            <td class="email-footer" align="center" style="padding: 28px 30px 0;">
+              <p style="margin: 0 0 10px; font-size: 12px; line-height: 20px; font-weight: 600; color: #0f172a;">Less checking. More living.</p>
+              <p style="margin: 0 0 10px; font-size: 11px; line-height: 19px; color: #64748b;">{% block footer_reason %}An account update from HeadsUp.{% endblock %}</p>
+              {% if frontend_url|default('') %}<p style="margin: 0 0 10px; font-size: 11px; line-height: 19px;"><a href="{{ frontend_url }}" style="color: #64748b; text-decoration: underline;">Visit HeadsUp</a></p>{% endif %}
+              <p style="margin: 0; font-size: 10px; line-height: 18px; color: #64748b;">&copy; {{ year|default('2026') }} HeadsUp. Mindful of your attention.</p>
+            </td>
+          </tr>
+        </table>
+        <!--[if mso]></td></tr></table><![endif]-->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

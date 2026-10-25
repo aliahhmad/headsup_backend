@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ heading|default('A heads-up for you', true) }}{% endblock %}
+{% block preheader %}{{ preview_text|default('An update from your HeadsUp account.', true) }}{% endblock %}
+{% block eyebrow %}{{ category|default('A LITTLE HEADS-UP', true) }}{% endblock %}
+{% block headline %}{{ heading|default('An update for you.', true) }}{% endblock %}
+{% block introduction %}{{ introduction|default('The details you need, all in one place.', true) }}{% endblock %}
+{% block content %}
+  {% for paragraph in message.split('\n') if paragraph.strip() %}
+  <p style="margin: 0 0 16px; font-size: 14px; line-height: 25px; color: #64748b;">{{ paragraph }}</p>
+  {% endfor %}
+{% endblock %}
+{% block footer_reason %}An update from your HeadsUp account.{% endblock %}

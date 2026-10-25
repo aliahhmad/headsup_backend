@@ -150,7 +150,7 @@ class UserManager:
                 background_tasks,
                 EmailTemplateSchema(
                     recipients=[NameEmail(user_full_name, new_user["email"])],
-                    subject=f"Welcome to {get_settings().api_title}!",
+                    subject="Verify your email · HeadsUp",
                     body={
                         "application": f"{get_settings().api_title}",
                         "user": new_user["email"],
@@ -449,7 +449,7 @@ class UserManager:
 
         Returns the query for pagination to handle.
         """
-        query = select(User)
+        query = select(User).order_by(User.id)
 
         if field == SearchField.ALL:
             if exact_match:

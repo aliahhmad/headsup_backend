@@ -18,7 +18,6 @@ services:
     environment:
       DB_ADDRESS: db
       DB_PORT: "5432"
-      MAIL_SERVER: mailpit
       REDIS_HOST: cache
     ports:
       - "127.0.0.1:8000:8000"

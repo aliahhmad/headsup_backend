@@ -448,7 +448,7 @@ class AuthManager:
             background_tasks,
             EmailTemplateSchema(
                 recipients=[NameEmail(name=user.first_name, email=user.email)],
-                subject=f"{get_settings().api_title} - Password Reset",
+                subject="Reset your HeadsUp password",
                 body={
                     "name": user.first_name,
                     "application": get_settings().api_title,
@@ -611,10 +611,11 @@ class AuthManager:
             background_tasks,
             EmailTemplateSchema(
                 recipients=[NameEmail(user_full_name, user_data.email)],
-                subject=f"Welcome to {get_settings().api_title}!",
+                subject="Verify your email · HeadsUp",
                 body={
                     "application": f"{get_settings().api_title}",
                     "user": user_data.email,
+                    "name": user_full_name,
                     "base_url": get_settings().base_url,
                     "verification": AuthManager.encode_verify_token(user_data),
                 },

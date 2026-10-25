@@ -1,15 +1,24 @@
-{#
-  Template : 'welcome.html'
-  Purpose  : This is sent as an email when a new User registers.
-
-  This is a very basic template, with no attempt at styling. Note that for HTML
-  email, all styles must be INLINE.
-#}
-
-<p>Hello <strong>{{ name }}</strong>, Welcome to <strong>{{ application }}</strong>!</p>
-<p>Please click the link below to <strong>verify your Email address</strong>.
-You will be unable to access the API before doing this.</p>
-
-<a href="{{ base_url }}/verify?code={{ verification }}">Verify my Email!</a>
-
-<p>This code will expire after 10 minutes.</p>
+{% extends "base.html" %}
+{% set action_url = base_url.rstrip('/') ~ '/verify?code=' ~ (verification|urlencode) %}
+{% set action_label = 'Verify email address' %}
+{% set expiry_text = 'For your security, this link expires in 10 minutes.' %}
+{% block title %}Verify your email{% endblock %}
+{% block preheader %}One quick step to finish setting up your HeadsUp account. Your verification link is inside.{% endblock %}
+{% block eyebrow %}WELCOME TO HEADSUP{% endblock %}
+{% block headline %}Good to have<br>you <span style="color: #5eead4;">here.</span>{% endblock %}
+{% block introduction %}Your personal space starts with one quick step.{% endblock %}
+{% block content %}
+  <p style="margin: 0 0 16px; font-size: 14px; line-height: 25px; color: #64748b;">Thanks for joining HeadsUp. Confirm your email address to finish setting up your account and sign in.</p>
+  {% if user|default('') %}
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width: 100%; margin-top: 22px;">
+    <tr><td bgcolor="#f8fafc" style="padding: 16px 18px; border: 1px solid #e2e8f0; border-radius: 7px; background-color: #f8fafc;">
+      <p style="margin: 0 0 5px; font-size: 10px; line-height: 16px; letter-spacing: 1px; color: #64748b;">YOUR EMAIL ADDRESS</p>
+      <p style="margin: 0; font-size: 14px; line-height: 23px; font-weight: 600; color: #0f172a; word-break: break-all;">{{ user }}</p>
+    </td></tr>
+  </table>
+  {% endif %}
+{% endblock %}
+{% block note %}
+  <p style="margin: 0; font-size: 12px; line-height: 21px; color: #64748b;">Didn’t create an account? You can safely ignore this email. No action is needed.</p>
+{% endblock %}
+{% block footer_reason %}You received this email because this address was used to create a HeadsUp account.{% endblock %}
