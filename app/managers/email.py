@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from email.message import EmailMessage
+from email.policy import SMTP
+from email.utils import formataddr, formatdate, make_msgid
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastapi import BackgroundTasks  # noqa: TC002
 from fastapi.responses import JSONResponse
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
+from fastapi_mail.connection import Connection
+from fastapi_mail.fastmail import email_dispatched
 
 from app.config.settings import get_settings
 from app.logs import LogCategory, category_logger
@@ -95,6 +100,18 @@ class EmailManager:
         self, backgroundtasks: BackgroundTasks, email_data: EmailTemplateSchema
     ) -> None:
         """Send an email using a Jinja Template."""
+        backgroundtasks.add_task(self._send_template_message, email_data)
+        recipients = ", ".join(r.email for r in email_data.recipients)
+        category_logger.info(
+            f"Template email queued: '{email_data.subject}' "
+            f"({email_data.template_name}) to {recipients}",
+            LogCategory.EMAIL,
+        )
+
+    def render_template_message(
+        self, email_data: EmailTemplateSchema
+    ) -> EmailMessage:
+        """Build a valid MIME message with plain text before preferred HTML."""
         settings = get_settings()
         template_body = {
             "application": settings.api_title,
@@ -103,32 +120,41 @@ class EmailManager:
             "year": datetime.now(UTC).year,
             **email_data.body,
         }
-        message = MessageSchema(
-            subject=email_data.subject,
-            recipients=email_data.recipients,
-            subtype=MessageType.html,
-            template_body=template_body,
-        )
-        fm = FastMail(self.conf)
         plain_template = str(Path(email_data.template_name).with_suffix(".txt"))
-        if (
+        has_plain_template = bool(
             self.conf.TEMPLATE_FOLDER
             and (self.conf.TEMPLATE_FOLDER / plain_template).is_file()
-        ):
-            backgroundtasks.add_task(
-                fm.send_message,
-                message,
-                html_template=email_data.template_name,
-                plain_template=plain_template,
-            )
-        else:
-            backgroundtasks.add_task(
-                fm.send_message, message, template_name=email_data.template_name
-            )
-
-        recipients = ", ".join(r.email for r in email_data.recipients)
-        category_logger.info(
-            f"Template email queued: '{email_data.subject}' "
-            f"({email_data.template_name}) to {recipients}",
-            LogCategory.EMAIL,
         )
+        engine = self.conf.template_engine()
+        html = engine.get_template(email_data.template_name).render(
+            **template_body
+        )
+        message = EmailMessage(policy=SMTP)
+        message["Subject"] = email_data.subject
+        message["From"] = formataddr(
+            (self.conf.MAIL_FROM_NAME or "", str(self.conf.MAIL_FROM))
+        )
+        message["To"] = ", ".join(
+            formataddr((recipient.name, recipient.email))
+            for recipient in email_data.recipients
+        )
+        message["Date"] = formatdate(localtime=False)
+        message["Message-ID"] = make_msgid()
+        if has_plain_template:
+            plain = engine.get_template(plain_template).render(**template_body)
+            message.set_content(plain)
+            # MIME clients prefer the last supported alternative (RFC 2046).
+            message.add_alternative(html, subtype="html")
+        else:
+            message.set_content(html, subtype="html")
+        return message
+
+    async def _send_template_message(
+        self, email_data: EmailTemplateSchema
+    ) -> None:
+        """Deliver the rendered message using the configured SMTP connection."""
+        message = self.render_template_message(email_data)
+        async with Connection(self.conf) as connection:
+            if not self.conf.SUPPRESS_SEND:
+                await connection.session.send_message(message)
+        email_dispatched.send(message)

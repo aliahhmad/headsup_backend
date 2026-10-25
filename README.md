@@ -172,6 +172,10 @@ HTML plus plain text when a matching `.txt` template exists. Existing custom
 templates without a plain-text counterpart still work. Names and message text
 are escaped in HTML.
 
+Template messages use Python's standard MIME builder, with plain text first and
+HTML last in `multipart/alternative`, so HTML-capable clients prefer the styled
+version. Multipart containers are not base64-encoded.
+
 For a general notification, supply `message` in the template body. Optionally
 supply `name`, `heading`, `preview_text`, `category`, `introduction`, `action_url`,
 and `action_label`. Use a trusted HTTPS URL for actions. Password-change emails

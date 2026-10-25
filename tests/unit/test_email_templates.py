@@ -1,12 +1,13 @@
 """Check rendered transactional emails without making SMTP connections."""
 
+from email import policy
+from email.parser import BytesParser
 from html import unescape
 from html.parser import HTMLParser
 from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi import BackgroundTasks
-from fastapi_mail import FastMail
 from jinja2 import StrictUndefined
 from pydantic import NameEmail
 
@@ -60,13 +61,24 @@ class TestEmailTemplates:
             ),
         )
         task = tasks.tasks[0]
-        message = await FastMail(email_manager.conf).get_message(
+        message = email_manager.render_template_message(
             *task.args, **task.kwargs
         )
-        assert any(
-            part.get_content_subtype() == "alternative"
-            for part in message.walk()
+        # Check the actual wire format: clients prefer the last supported part.
+        message = BytesParser(policy=policy.default).parsebytes(
+            message.as_bytes()
         )
+        alternatives = [
+            part
+            for part in message.walk()
+            if part.get_content_type() == "multipart/alternative"
+        ]
+        assert len(alternatives) == 1
+        assert [
+            part.get_content_type() for part in alternatives[0].iter_parts()
+        ] == ["text/plain", "text/html"]
+        assert alternatives[0].get_body().get_content_type() == "text/html"
+        assert all(not part.defects for part in message.walk())
         parts = {
             part.get_content_type(): part.get_payload(decode=True).decode()
             for part in message.walk()
@@ -91,6 +103,38 @@ class TestEmailTemplates:
             parse_qs(urlparse(link).query)["code"] == [token]
             for link in action_links
         )
+        # Exercise the queued delivery path with SMTP suppressed by the fixture.
+        await tasks()
+
+    @pytest.mark.parametrize("suppress", [False, True])
+    @pytest.mark.asyncio
+    async def test_template_transport(
+        self, email_manager, mocker, monkeypatch, *, suppress
+    ) -> None:
+        """The queued SMTP path must deliver the same valid HTML alternative."""
+        monkeypatch.setattr(email_manager.conf, "SUPPRESS_SEND", int(suppress))
+        connection = mocker.patch("app.managers.email.Connection")
+        smtp = connection.return_value.__aenter__.return_value.session
+        smtp.send_message = mocker.AsyncMock()
+        tasks = BackgroundTasks()
+        email_manager.template_send(
+            tasks,
+            EmailTemplateSchema(
+                recipients=[NameEmail("Alex", "alex@example.com")],
+                subject="Account update",
+                template_name="notification.html",
+                body={"message": "Your account has been updated."},
+            ),
+        )
+        await tasks()
+        if suppress:
+            smtp.send_message.assert_not_awaited()
+        else:
+            smtp.send_message.assert_awaited_once()
+            message = smtp.send_message.call_args.args[0]
+            assert [
+                part.get_content_type() for part in message.iter_parts()
+            ] == ["text/plain", "text/html"]
 
     @pytest.mark.parametrize(
         "template",
