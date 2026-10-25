@@ -47,7 +47,6 @@
   "python.analysis.autoImportUserSymbols": true,
   "python.analysis.extraPaths": [],
   "python.analysis.indexing": true,
-  "python.analysis.stubPath": "/home/seapagan/stubs",
   "python.analysis.typeCheckingMode": "off",
   "python.pythonPath": "./.venv/bin/python",
   "python.testing.pytestArgs": ["tests"],

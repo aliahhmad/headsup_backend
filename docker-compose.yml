@@ -1,65 +1,52 @@
+# Alternative to running the API on the host: run the entire HeadsUp stack.
+name: headsup-api-local
+
 services:
   api:
-    image: fastapi-template:dev
+    container_name: headsup-api
+    image: headsup-api:dev
     build:
       context: .
       target: dev
-    command: bash -c "uv run alembic upgrade head && uvicorn app.main:app --host
-      0.0.0.0 --port 8001 --reload"
+    command: bash -c "uv run --locked alembic upgrade head && uv run --locked
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app"
     volumes:
       - .:/app/
       - /app/.venv
     env_file:
       - .env
     environment:
-      - DB_ADDRESS=postgres
+      DB_ADDRESS: db
+      DB_PORT: "5432"
+      MAIL_SERVER: mailpit
+      REDIS_HOST: cache
     ports:
-      - 8001:8001
-    networks:
-      - api-network
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
+      mailpit:
+        condition: service_started
 
   db:
-    image: postgres:18.1-bookworm
-    hostname: postgres
-    environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_TEST_DB: ${TEST_DB_NAME}
-      PGDATA: /var/lib/postgresql/18/docker
-    volumes:
-      - api-db-data:/var/lib/postgresql/18/data
-      - ./docker_support/create-test-db.sh:/docker-entrypoint-initdb.d/create-test-db.sh
-    ports:
-      - 5433:${DB_PORT}
-    networks:
-      - api-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 2s
-      timeout: 3s
-      retries: 40
+    extends:
+      file: compose.local.yml
+      service: db
+
+  mailpit:
+    extends:
+      file: compose.local.yml
+      service: mailpit
 
   cache:
-    image: redis/redis-stack:latest
-    restart: always
+    container_name: headsup-cache
+    image: redis:8
+    profiles: [cache]
     ports:
-      - "6379:6379"
-      - "8002:8001"
+      - "127.0.0.1:6379:6379"
     volumes:
       - cache:/data
-    networks:
-      - api-network
 
 volumes:
-  api-db-data:
-    name: api-db-data
+  postgres-data:
   cache:
-    driver: local
-
-networks:
-  api-network:
-    name: fastapi-network

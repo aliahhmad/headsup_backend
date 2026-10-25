@@ -43,9 +43,6 @@ class TestCLI:
 
         command_list = ["custom", "db", "docs", "serve", "test", "user"]
 
-        assert (
-            "Run administrative tasks for the FastAPI Template system."
-            in result.output
-        )
+        assert "Run administrative tasks for HeadsUp." in result.output
 
         assert all(command in result.output for command in command_list)

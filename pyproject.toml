@@ -1,8 +1,8 @@
 [project]
-name = "api-template"
+name = "headsup-api"
 version = "0.9.0"
-description = "Run 'api-admin custom metadata' to change this information."
-authors = [{ name = "Grant Ramsay", email = "seapagan@gmail.com" }]
+description = "HeadsUp API: stay informed without having to keep checking."
+authors = []
 license = "MIT"
 license-files = ["LICENSE.txt"]
 readme = "README.md"
@@ -267,6 +267,7 @@ testpaths = ["tests"]
 mock_use_standalone_module = true
 env = [
   "I_READ_THE_DAMN_DOCS=true",
+  "CORS_ORIGINS=*",
   "ADMIN_PAGES_ENABLED=true",
   "CACHE_ENABLED=true",
   "LOG_FILENAME=test_api.log",

@@ -21,12 +21,18 @@
       <h2>{{ description }}</h2>
     </header>
     <main>
-      <p>This service is an API, there is nothing to see here ;)</p>
+      <p>Stay informed without having to keep checking.</p>
+      <p>
+        HeadsUp follows the topics you care about and aims to notify you when
+        something meaningful changes.
+      </p>
+      {% if repository %}
       <p>
         Go to the
         <a href="{{ repository }}" rel="noopener noreferrer">GitHub</a>
         repository for the code and usage instructions.
       </p>
+      {% endif %}
       <p>
         Visit the
         <a href="/docs" rel="noopener noreferrer">local documentation</a> for
@@ -34,9 +40,15 @@
       </p>
     </main>
     <footer>
-      &copy;
-      <a href="{{ website }}" rel="noopener noreferrer">{{ author }}</a>
-      {{ year }}
+      HeadsUp &middot; {{ year }}
+      {% if author %}
+        &middot;
+        {% if website %}
+          <a href="{{ website }}" rel="noopener noreferrer">{{ author }}</a>
+        {% else %}
+          {{ author }}
+        {% endif %}
+      {% endif %}
     </footer>
   </body>
 

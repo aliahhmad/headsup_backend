@@ -1,4 +1,6 @@
 FROM python:3.14-slim AS dev
+LABEL org.opencontainers.image.title="HeadsUp API" \
+    org.opencontainers.image.description="Stay informed without having to keep checking."
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 RUN apt-get update -y && apt-get install -y \
@@ -30,4 +32,4 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV DOCKER_RUNNING=1
 
 # Running the application
-CMD ["uvicorn", "--host", "0.0.0.0", "--port","8001","app.main:app", "--reload"]
+CMD ["uvicorn", "--host", "0.0.0.0", "--port", "8000", "app.main:app", "--reload", "--reload-dir", "app"]

@@ -24,8 +24,7 @@ def get_database_url(*, use_test_db: bool = False) -> str:
     """
     if os.getenv("GITHUB_ACTIONS"):
         return (
-            "postgresql+asyncpg://postgres:postgres"
-            "@localhost:5432/fastapi-template-test"
+            "postgresql+asyncpg://postgres:postgres@localhost:5432/headsup_test"
         )
 
     settings = get_settings()

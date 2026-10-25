@@ -1,355 +1,132 @@
-# FastAPI Application Template <!-- omit in toc -->
+# HeadsUp API
 
-![GitHub Release](https://img.shields.io/github/v/release/seapagan/fastapi-template)
-[![Ruff](https://github.com/seapagan/fastapi-template/actions/workflows/ruff.yml/badge.svg)](https://github.com/seapagan/fastapi-template/actions/workflows/ruff.yml)
-[![Tests](https://github.com/seapagan/fastapi-template/actions/workflows/tests.yml/badge.svg)](https://github.com/seapagan/fastapi-template/actions/workflows/tests.yml)
-[![Code Coverage](https://app.codacy.com/project/badge/Coverage/82085ec100b64e73bea63b5942371e94)](https://app.codacy.com/gh/seapagan/fastapi-template/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_coverage)
-[![Code Quality](https://app.codacy.com/project/badge/Grade/82085ec100b64e73bea63b5942371e94)](https://app.codacy.com/gh/seapagan/fastapi-template/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![pages-build-deployment](https://github.com/seapagan/fastapi-template/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/seapagan/fastapi-template/actions/workflows/pages/pages-build-deployment)
+**Stay informed without having to keep checking.**
 
-This is a template Repository for starting a new
-[FastAPI](https://fastapi.tiangolo.com/) project with Authentication and Users,
-with Authorization already baked-in.
+HeadsUp is an AI-powered personal monitoring assistant concept. Users describe
+what they care about; HeadsUp aims to follow relevant sources, remember past
+developments, and notify them only when something meaningful changes.
 
----
+This repository contains the FastAPI backend foundation. Authentication, user
+management, API keys, password recovery, administration, and local development
+services are available. Topic monitors, scheduled collection, AI analysis, and
+change notifications are planned product features.
 
-**📚 [Full Documentation](https://api-template.seapagan.net) | 🚀 [Quick Start Guide](https://api-template.seapagan.net/quick-start/)**
+## HeadsUp local development
 
-Complete documentation is available at **[api-template.seapagan.net][doc]**,
-including setup instructions, API reference, deployment guides, and
-troubleshooting. New users should start with the **[Quick Start
-Guide](https://api-template.seapagan.net/quick-start/)** to get up and running
-in under 5 minutes.
+Run the API with Python 3.13 and `uv`, with PostgreSQL and a local email inbox
+provided by Docker. Use `compose.local.yml` for this setup.
 
----
+The local `.env` contains generated secrets and is ignored by Git. For a fresh
+checkout, copy `.env.example` to `.env` and configure these values first:
 
-- [Important note on Versioning](#important-note-on-versioning)
-- [Breaking Changes](#breaking-changes)
-- [Changes from version 0.4.x](#changes-from-version-04x)
-- [Functionality](#functionality)
-- [Installation](#installation)
-- [Docker](#docker)
-  - [Develop on containers](#develop-on-containers)
-  - [Migrations on containers](#migrations-on-containers)
-  - [Testing on containers](#testing-on-containers)
-- [Planned Functionality and Known Bugs](#planned-functionality-and-known-bugs)
-- [Testing](#testing)
-- [Code Quality](#code-quality)
-- [Who is Using this Template?](#who-is-using-this-template)
-- [Contributing](#contributing)
-- [GitHub Discussions](#github-discussions)
-
-## Important note on Versioning
-
-This template versioning has been refactored to start from **Version 0.4.0**.
-
-The original template was written for my own use and probably promoted to V1.0.0
-before it should have been, and there have been many updates and fixes since
-then.
-
-I will keep the old releases available for those who wish to use them (for a
-short time). It's better to do this now before more users need to update their
-projects to future versions.
-
-All releases from now on will also contain a Git patch to upgrade from the
-previous version. This will be in the form of a `.patch` file which can be
-applied to their project using the `git apply` command. This will be documented
-in the release notes.
-
-## Breaking Changes
-
-There will be breaking changes implemented from time to time, as the template is
-still evolving. These may be due to security issues or changes in philosophy.
-These can always be found [here](https://api-template.seapagan.net/important/)
-on the website.
-
-## Changes from version 0.4.x
-
-Starting from version 0.5.0, the template has been refactored to use SQLAlchemy
-2.0 ORM instead of `encode/databases` for database access. This allows for a
-more flexible and powerful Asynchronous database access but does need a bit of
-refactoring for any existing projects. See the [documentation][breaking] for
-more information. I will also be adding a migration guide for those who wish to
-upgrade their existing projects (time permitting).
-
-If you prefer to continue using the 0.4.x branch, you can find it
-[here][legacy-branch].
-
-To use this branch you will need to clone the repository and checkout the
-`0.4.2` branch.
-
-```console
-git clone -b 0.4.2 https://github.com/seapagan/fastapi-template.git
+```dotenv
+DB_USER=headsup
+DB_PASSWORD=<generate with openssl rand -hex 24>
+DB_ADDRESS=127.0.0.1
+DB_PORT=5435
+DB_NAME=headsup
+TEST_DB_NAME=headsup_test
+SECRET_KEY=<generate with openssl rand -hex 32>
+I_READ_THE_DAMN_DOCS=true
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_FROM=noreply@example.com
+MAIL_SERVER=127.0.0.1
+MAIL_PORT=1025
+MAIL_STARTTLS=False
+MAIL_SSL_TLS=False
+MAIL_USE_CREDENTIALS=False
+MAIL_VALIDATE_CERTS=False
 ```
 
-Be aware that this branch will not be maintained and will not receive any
-updates or bug fixes.
+The acknowledgement setting is required by the template; review
+[breaking changes](docs/important.md) before upgrading it.
 
-## Functionality
-
-This template is a ready-to-use boilerplate for a FastAPI project. It has the
-following advantages to starting your own from scratch :
-
-- Baked-in User database and management. Routes are provided to
-  add/edit/delete/search or ban (and unban) Users.
-- Postgresql Integration, using SQLAlchemy ORM, no need for raw SQL queries
-  (unless you want to!). All database usage is Asynchronous. [Alembic][alembic]
-  is used to control database migrations.
-- Register and Login routes provided, both of which return a JWT token to be
-  used in all future requests. JWT Token expires 120 minutes after issue.
-- JWT-based security as a Bearer Token to control access to all your routes.
-- **Password Recovery** system with secure token-based reset flow. Users can
-  request a password reset via email, receiving a time-limited (30 minute)
-  token to securely reset their password. Features built-in HTML forms for
-  standalone use, or optional `FRONTEND_URL` configuration to redirect to
-  custom frontends. Supports both JSON API and form-based submissions. The
-  system protects against email enumeration attacks and includes URL encoding
-  and token validation for security.
-- Passwords must be at least 8 characters and no more than 72 bytes when
-  UTF-8 encoded. On older installations upgraded to `bcrypt` 5, users whose
-  existing password exceeded that limit must reset their password before they
-  can log in again.
-- `API Keys` are fully implemented and can be used by registered users instead
-  of the JWT. These will **not expire** at present though adding expiry is a
-  future plan. API keys are passed using the `X-API-Key` header.
-- A `Refresh Token` with 30 day expiry is sent at time of register or login
-  (never again). This will enable easy re-authentication when the JWT expires
-  without needing to send username or password again, and should be done
-  automatically by the Front-End.
-- A clean layout to help structure your project.
-- An optional **Admin site** to manage users and API keys. This uses the
-  `sqladmin` package to give you an easy way to manage your database.
-- **Category-based logging** using [loguru](https://github.com/Delgan/loguru)
-  with configurable log levels, rotation, retention, and compression. Control
-  what gets logged via `LOG_CATEGORIES` (requests, auth, database, errors,
-  etc.).
-- **Optional response caching** for improved performance and reduced database
-  load. Disabled by default, can be enabled with in-memory or Redis backend.
-  Includes cache invalidation utilities, monitoring, and configurable TTL.
-  Cache hits typically 5-30x faster than database queries (depending on query
-  complexity). Tests run with in-memory caching enabled.
-- **Prometheus metrics** for production observability. Optional metrics
-  collection tracks HTTP performance (requests, latency, in-flight), business
-  metrics (auth failures, API key usage, login attempts), and custom
-  application metrics. Exposed via `/metrics` endpoint when enabled.
-- **Rate limiting** for authentication endpoints to protect against brute force
-  attacks, spam, and abuse. Disabled by default, supports both in-memory (for
-  single-instance) and Redis (for multi-instance) backends. Conservative limits
-  applied to login (5/15min), registration (3/hour), password recovery (3/hour),
-  and other auth routes. Returns HTTP 429 with `Retry-After` header when limits
-  exceeded. Violations tracked via Prometheus metrics when enabled.
-- **Timing attack protection** in authentication flows. Login operations use
-  constant-time password verification to prevent user enumeration, and token
-  validation uses constant-time comparisons for defense-in-depth.
-- **A command-line admin tool**. This allows to configure the project metadata
-  very easily, add users (and make admin), and run a development server. This
-  can easily be modified to add your own functionality (for example bulk add
-  data) since it is based on the excellent [Typer][typer] library.
-- Built-in pagination support for user listing and search endpoints, using
-  `fastapi-pagination`.
-- Easily batch-add random test users to the database for testing/development
-  purposes using the CLI or seed the database with pre-set users from a CSV
-  file.
-- Database and Secrets are automatically read from Environment variables or a
-  `.env` file if that is provided. The CLI can generate and set the JWT Secret
-  and Admin pages encryption keys.
-- User email is validated for correct format on creation (however no checks are
-  performed to ensure the email or domain actually exists).
-- Control permitted CORS Origin through Environment variables.
-- Manager class set up to send emails to users, and by default an email is sent
-  when new users register. The content is set by a template (currently a basic
-  placeholder). This email has a link for the user to confirm their email
-  address - until this is done, the user cannot user the API.
-- A lightweight `/heartbeat` endpoint for uptime/health checks.
-- Docker and Compose file set up to develop and test this API using Docker
-
-**This template is still in very active development and probably not yet ready
-for full production use. However, I am currently using it to develop my own
-projects, which include some production API's without issues. I will update the
-template as I find bugs or add new features. I will also be adding more
-documentation as I go. For the moment, if you wish to use it without getting
-involved in dev, I'd recommend checking out the latest actual
-[Release][latest-release].**
-
-However, the `main` branch should be pretty stable as all development is done on
-the `develop` branch and merged into `main` when ready.
-
-The template **Requires Python 3.10.0** or higher. I actually develop under
-Python 3.14.x where x is the latest patch version available at the time, and
-migrating to the next patch version as soon as it is released. CI tests are run
-automatically on the latest patch levels of Python 3.10 to 3.14.
-
-This template is free to use but I would request some accreditation. If you do
-use it in one of your applications, or even some of the unique code from the
-template, or you learn something from it, please put a small note in your readme
-or blog post/whatever stating that you used this Template or code therein, with
-a link back to this repository. Thank You 😊
-
-For those who let me know they are using this Template, I'll add links back to
-your project in this documentation.
-
-If this template saves you time/effort/money, or you just wish to show your
-appreciation for my work, why not [Sponsor my Work][sponsor] or [Buy me a
-Coffee!][coffee] 😃
-
-## Installation
-
-Click the 'Use this template' button at the top of the Repository on GitHub.
-This will create a new repository in your personal GitHub account (Not a Fork)
-which you can then Clone and start working on.
-
-It is assumed that you have at least some knowledge of [FastAPI][fastapi] to use
-this template, there are very good [Basic][tut-basic] and
-[Advanced][tut-advanced] User Guides on the FastAPI website .
-
-Visit the [Installation Instructions][install] for more detailed installation
-notes, including how to handle the coverage uploader.
-
-## Docker
-
-Note that when run from docker, the API is exposed on port `8001` instead of
-`8000`.
-
-Also, unlike before version 0.5.1, it is no longer required to change the
-`DB_ADDRESS` environment variable when running on docker, this is taken care of
-automatically.
-
-### Develop on containers
-
-> :warning: For local use rename `.env.example` to `.env`.
-
-It is possible to develop directly on Docker containers :
-
-**Using `docker compose up` (recommended):**
-
-```console
-docker compose up
+```bash
+uv sync --locked --python 3.13
+docker compose -f compose.local.yml up -d --wait
+uv run --locked alembic upgrade head
+uv run --locked uvicorn app.main:app --host 127.0.0.1 --port 8000 \
+  --reload --reload-dir app
 ```
 
-To run and rebuild image (dependency updates):
+- API docs: <http://localhost:8000/docs>
+- Health check: <http://localhost:8000/heartbeat>
+- Local email inbox: <http://localhost:8025> (Mailpit captures outgoing email)
+- Database: `127.0.0.1:5435`, with separate `headsup` and `headsup_test` databases
 
-```console
-docker compose up --build
+Create your first admin account interactively:
+
+```bash
+uv run --locked api-admin user create --admin
 ```
 
-To remove all containers:
+Choose your own email and password, then sign in at <http://localhost:8000/admin>.
+Accounts created through the CLI are already verified. Accounts registered
+through the API receive a verification link in the local email inbox.
 
-```console
-docker compose down
+Run the existing test suite against the dedicated test database:
+
+```bash
+uv run --locked pytest -n 2
 ```
 
-**Using `docker compose run`:**
+Tests recreate tables in `TEST_DB_NAME`; keep it distinct from `DB_NAME`.
+Redis is optional and disabled for this setup.
 
-First run migrations:
+Stop the API with Ctrl+C and stop backing services with
+`docker compose -f compose.local.yml down`. Database data persists in the
+project's Docker volume across restarts. Changing database credentials in `.env`
+after the volume has been initialized also requires updating the PostgreSQL role.
 
-```console
-docker compose run --rm api alembic upgrade head
+## Docker resources
+
+| Resource | Name |
+| --- | --- |
+| Compose project | `headsup-api-local` |
+| PostgreSQL container | `headsup-db` |
+| Local email container | `headsup-mailpit` |
+| API container (full Docker mode) | `headsup-api` |
+| Optional cache container | `headsup-cache` |
+| PostgreSQL data volume | `headsup-api-local_postgres-data` |
+
+The database volume is shared by both development modes. Container renaming does
+not change the stored databases or credentials.
+
+To run the API in Docker instead, stop the API running on the host, then run:
+
+```bash
+docker compose up -d --build --wait
 ```
 
-Run containers:
+The API still uses port 8000. Both Compose files use the same backing services
+and database volume. Use `docker compose down` to stop the full stack. Add
+`--profile cache` when starting it to include Redis, and set `REDIS_ENABLED=true`
+and `CACHE_ENABLED=true` in `.env` to use it.
 
-```console
-docker compose run --rm --service-ports api uvicorn --host 0.0.0.0 main:app --reload
-```
+## Project details
 
-To rebuild image (dependency updates):
+- API title: **HeadsUp API**
+- Python package: `headsup-api`
+- Admin title: **HeadsUp Administration**
+- Email sender name: **HeadsUp**
+- Author, public contact email, website, and repository URL: not configured
 
-```console
-docker compose build
-```
+`MAIL_FROM=noreply@example.com` is a local testing sender captured by Mailpit;
+it is not a public contact address. Configure a real sender and SMTP service
+before using email outside development.
 
-### Migrations on containers
+The inherited `api-admin` command remains available for administration.
+Application metadata lives in `app/config/metadata.py`; Python package metadata
+lives in `pyproject.toml`.
 
-Running migrations on Docker container is also possible:
+## Documentation and attribution
 
-```console
-docker compose run --rm api alembic upgrade head
-```
+The [documentation](docs/index.md) covers the backend and its infrastructure.
+Some detailed guides retain examples from the original template and describe
+inherited functionality rather than implemented HeadsUp monitoring features.
 
-### Testing on containers
-
-Running tests on Docker container is also possible:
-
-```console
-docker compose run --rm api pytest
-```
-
-## Planned Functionality and Known Bugs
-
-See the [TODO.md](TODO.md) file for plans and known issues.
-
-## Testing
-
-This project has a test suite for Integration and Unit tests. We use
-[pytest][pytest] for this.
-
-Currently you need a Postgresql database running for this to work, however
-SQLite support is planned to be re-added. You can easily set up a Postgresql
-database using Docker.
-
-Before running the tests, you need to create a dedicated test database, in is
-assumed that the server, username and password are the same as for the main
-database.
-
-Edit the setting in `.env` to point to the test database:
-
-```ini
-# Database name to use for testing. This must already exist.
-TEST_DB_NAME=api-template-test
-```
-
-You can then migrate this empty database by running:
-
-```console
-$ api-admin test setup
-Migrating the test database ... Done!
-```
-
-Tests can then be run from the checked out code with:
-
-```console
-$ pytest
-```
-
-It is possible to run either the Unit or Integration tests separately using
-`pytest -m unit` or `pytest -m integration`
-
-Full tests will be run automatically by **GitHub Actions** on every new commit
-pushed up to the remote repository. Code Coverage is also checked and noted
-after each test suite is run.
-
-## Code Quality
-
-`To be written`
-
-## Who is Using this Template?
-
-Meh, at the moment probably no-one except me 😆. If you do use this in one of
-your own projects, drop me a message and I'll add your profile and project links
-here 😃.
-
-## Contributing
-
-See [Contributing][contrib] for details on how to contribute to this project.
-
-## GitHub Discussions
-
-I have enabled [Discussions][discussions] on this repository, so if you have any
-questions, suggestions or just want to chat about this template, please feel
-free to start a discussion.
-
-[doc]: https://api-template.seapagan.net
-[contrib]: https://api-template.seapagan.net/contributing/
-[breaking]: https://api-template.seapagan.net/important/
-[install]: https://api-template.seapagan.net/usage/installation/
-[latest-release]: https://github.com/seapagan/fastapi-template/releases/latest
-[discussions]: https://github.com/seapagan/fastapi-template/discussions
-[legacy-branch]: https://github.com/seapagan/fastapi-template/tree/0.4.2
-[sponsor]: https://github.com/sponsors/seapagan
-[coffee]: https://www.buymeacoffee.com/seapagan
-[alembic]: https://github.com/sqlalchemy/alembic
-[typer]: https://typer.tiangolo.com/
-[fastapi]: https://fastapi.tiangolo.com/
-[pytest]: https://docs.pytest.org
-[tut-basic]: https://fastapi.tiangolo.com/tutorial/
-[tut-advanced]: https://fastapi.tiangolo.com/advanced/
+This project is based on
+[Grant Ramsay's FastAPI Template](https://github.com/seapagan/fastapi-template).
+The original copyright and MIT license are preserved in [LICENSE.txt](LICENSE.txt).

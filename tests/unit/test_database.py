@@ -269,8 +269,7 @@ class TestDatabase:
         mocker.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"})
         url = db.get_database_url()
         assert url == (
-            "postgresql+asyncpg://postgres:postgres"
-            "@localhost:5432/fastapi-template-test"
+            "postgresql+asyncpg://postgres:postgres@localhost:5432/headsup_test"
         )
 
     def test_create_session_maker(self, mocker) -> None:

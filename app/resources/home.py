@@ -39,9 +39,7 @@ def root_path(
         )
 
     return {
-        "info": (
-            f"{get_settings().contact['name']}'s {get_settings().api_title}"
-        ),
+        "info": get_settings().api_title,
         "repository": get_settings().repository,
     }
 

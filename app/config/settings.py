@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     db_password: SecretStr = SecretStr("CHANGE_ME_IN_ENV_FILE")
     db_address: str = "localhost"
     db_port: str = "5432"
-    db_name: str = "api-template"
+    db_name: str = "headsup"
 
     test_with_postgres: bool = False
 
@@ -84,7 +84,7 @@ class Settings(BaseSettings):
     test_db_password: SecretStr = SecretStr("test_password_local_only")
     test_db_address: str = "localhost"
     test_db_port: str = "5432"
-    test_db_name: str = "api-template-test"
+    test_db_name: str = "headsup_test"
 
     # JWT secret Key - CRITICAL SECURITY SETTING
     # Generate with: openssl rand -hex 32
@@ -109,7 +109,7 @@ class Settings(BaseSettings):
     mail_from: str = ""
     mail_port: int = 587
     mail_server: str = "mail.server.com"
-    mail_from_name: str = "FASTAPI Template"
+    mail_from_name: str = "HeadsUp"
     mail_starttls: bool = True
     mail_ssl_tls: bool = False
     mail_use_credentials: bool = True
@@ -118,7 +118,7 @@ class Settings(BaseSettings):
     # admin pages settings
     admin_pages_enabled: bool = False
     admin_pages_route: str = "/admin"
-    admin_pages_title: str = "API Administration"
+    admin_pages_title: str = "HeadsUp Administration"
     admin_pages_encryption_key: SecretStr = Field(
         default_factory=lambda: SecretStr(Fernet.generate_key().decode()),
         description="Encryption key for admin session tokens",

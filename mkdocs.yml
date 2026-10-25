@@ -1,5 +1,5 @@
-site_name: FastAPI Template
-site_url: https://api-template.seapagan.net/
+site_name: HeadsUp API
+site_description: Stay informed without having to keep checking.
 
 theme:
   name: material
@@ -17,14 +17,6 @@ theme:
     - toc.follow
     # - navigation.expand
 
-extra:
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/seapagan
-    - icon: fontawesome/brands/twitter
-      link: https://twitter.com/gnramsay-dev
-
-copyright: © 2022-2026 Grant Ramsay (Seapagan)
 
 plugins:
   - mkdocstrings
@@ -41,9 +33,6 @@ plugins:
       minify_js: true
       htmlmin_opts:
         remove_comments: true
-
-repo_url: https://github.com/seapagan/fastapi-template
-repo_name: seapagan/fastapi-template
 
 dev_addr: "127.0.0.1:9000"
 

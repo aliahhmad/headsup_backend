@@ -28,17 +28,17 @@ app = typer.Typer(no_args_is_help=True)
 def init() -> None:
     """Create a default metadata file, overwrite any existing."""
     data = {
-        "title": "API Template",
-        "name": "api_template",
-        "desc": "Run 'api-admin custom metadata' to change this information.",
-        "repo": "https://github.com/seapagan/fastapi-template",
+        "title": "HeadsUp API",
+        "name": "headsup-api",
+        "desc": "Stay informed without having to keep checking.",
+        "repo": "",
         "license": {
             "name": "MIT",
             "url": "https://opensource.org/licenses/MIT",
         },
-        "author": "Grant Ramsay (seapagan)",
-        "website": "https://www.gnramsay.com",
-        "email": "seapagan@gmail.com",
+        "author": "",
+        "website": "",
+        "email": "",
         "this_year": datetime.datetime.now(tz=datetime.timezone.utc)
         .date()
         .today()

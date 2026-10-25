@@ -34,7 +34,7 @@ def main(
         is_eager=True,
     ),
 ) -> None:
-    """Run administrative tasks for the FastAPI Template system."""
+    """Run administrative tasks for HeadsUp."""
     if version:
         name, desc, _ = get_api_details()
         output = f"[bold]{name}[/bold] v{get_api_version()}\n{desc}"

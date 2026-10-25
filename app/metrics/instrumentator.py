@@ -16,7 +16,7 @@ def get_instrumentator() -> Instrumentator:
     - Metric namespace from api_title for organization
 
     Custom latency buckets applied during .instrument() call in main.py.
-    Metrics will be prefixed with {api_title}_http_ (e.g., api_template_http_).
+    Metrics will be prefixed with {api_title}_http_ (e.g., headsup_api_http_).
 
     Returns:
         Instrumentator instance with performance-focused configuration.

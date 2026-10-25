@@ -2,7 +2,7 @@
 services:
   redis:
     image: redis:8
-    container_name: redis
+    container_name: headsup-redis
     ports:
       - "6379:6379"
     volumes:

@@ -299,6 +299,37 @@ class TestKeyBuilders:
 class TestInvalidationFunctions:
     """Test cache invalidation functions."""
 
+    @pytest.fixture(autouse=True)
+    def enable_cache(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Exercise enabled-cache behavior unless a test disables it."""
+        settings = MagicMock(cache_enabled=True)
+        monkeypatch.setattr(
+            "app.cache.invalidation.get_settings", lambda: settings
+        )
+
+    @pytest.mark.asyncio
+    async def test_disabled_cache_skips_uninitialized_backend(
+        self, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+    ) -> None:
+        """Account mutations must work without initializing a disabled cache."""
+        settings = MagicMock(cache_enabled=False)
+        monkeypatch.setattr(
+            "app.cache.invalidation.get_settings", lambda: settings
+        )
+        mock_clear = mocker.patch.object(
+            FastAPICache,
+            "clear",
+            new_callable=AsyncMock,
+            side_effect=AssertionError("You must call init first!"),
+        )
+
+        await invalidate_user_cache(123)
+        await invalidate_users_list_cache()
+        await invalidate_api_keys_cache(123)
+        await invalidate_namespace("apikey:123:key-id")
+
+        mock_clear.assert_not_awaited()
+
     @pytest.mark.asyncio
     async def test_invalidate_user_cache_success(
         self, mocker: MockerFixture

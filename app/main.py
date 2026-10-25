@@ -1,4 +1,4 @@
-"""Main file for the FastAPI Template."""
+"""Main application for HeadsUp."""
 
 import logging
 import sys
@@ -56,9 +56,7 @@ if not get_settings().i_read_the_damn_docs:
         "The API has changed massively since version 0.4.0 and you need to "
         "familiarize yourself with the new breaking changes."
     )
-    logger.error(
-        "See https://api-template.seapagan.net/important/ for information."
-    )
+    logger.error("See docs/important.md for information.")
     sys.exit(BLIND_USER_ERROR)
 
 

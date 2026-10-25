@@ -7,18 +7,21 @@ Be aware, this will be re-generated any time you run the
 from app.config.helpers import MetadataBase
 
 custom_metadata = MetadataBase(
-    title="API Template",
-    name="api-template",
-    description="Run 'api-admin custom metadata' to change this information.",
-    repository="https://github.com/seapagan/fastapi-template",
+    title="HeadsUp API",
+    name="headsup-api",
+    description=(
+        "The backend for HeadsUp, an AI-powered personal monitoring assistant. "
+        "Stay informed without having to keep checking."
+    ),
+    repository="",
     license_info={
         "name": "MIT",
         "url": "https://opensource.org/licenses/MIT",
     },
     contact={
-        "name": "Grant Ramsay (seapagan)",
-        "url": "https://www.gnramsay.com",
+        "name": "",
+        "url": "",
     },
-    email="seapagan@gmail.com",
-    year="2022-2026",
+    email="",
+    year="2026",
 )

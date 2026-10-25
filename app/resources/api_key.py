@@ -1,12 +1,9 @@
 """API Key routes."""
 
-from contextlib import suppress
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from fastapi_cache import FastAPICache
-from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cache import (
@@ -14,6 +11,7 @@ from app.cache import (
     api_keys_list_key_builder,
     cached,
     invalidate_api_keys_cache,
+    invalidate_namespace,
 )
 from app.cache.constants import CacheNamespaces
 from app.database.db import get_database
@@ -159,11 +157,10 @@ async def _update_api_key_common(
     await invalidate_api_keys_cache(user_id)
     # Also invalidate the single key cache (uses singular "apikey" namespace)
     # Graceful degradation - cache will expire via TTL if clear fails
-    with suppress(RedisError, OSError, RuntimeError):
-        namespace = CacheNamespaces.API_KEY_SINGLE_FORMAT.format(
-            user_id=user_id, key_id=key_id
-        )
-        await FastAPICache.clear(namespace=namespace)
+    namespace = CacheNamespaces.API_KEY_SINGLE_FORMAT.format(
+        user_id=user_id, key_id=key_id
+    )
+    await invalidate_namespace(namespace)
 
     return ApiKeyResponse.model_validate(updated_key.__dict__)
 
@@ -215,11 +212,10 @@ async def _delete_api_key_common(
     await invalidate_api_keys_cache(user_id)
     # Also invalidate the single key cache (uses singular "apikey" namespace)
     # Graceful degradation - cache will expire via TTL if clear fails
-    with suppress(RedisError, OSError, RuntimeError):
-        namespace = CacheNamespaces.API_KEY_SINGLE_FORMAT.format(
-            user_id=user_id, key_id=key_id
-        )
-        await FastAPICache.clear(namespace=namespace)
+    namespace = CacheNamespaces.API_KEY_SINGLE_FORMAT.format(
+        user_id=user_id, key_id=key_id
+    )
+    await invalidate_namespace(namespace)
 
 
 @router.delete(

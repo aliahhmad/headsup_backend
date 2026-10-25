@@ -1,6 +1,6 @@
 # API Reference
 
-This page documents all the API endpoints available in the FastAPI template.
+This page documents the authentication and user endpoints in the HeadsUp API.
 
 ## Authentication Endpoints
 
