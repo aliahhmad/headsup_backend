@@ -28,6 +28,8 @@ DB_NAME=headsup
 TEST_DB_NAME=headsup_test
 SECRET_KEY=<generate with openssl rand -hex 32>
 I_READ_THE_DAMN_DOCS=true
+BASE_URL=http://localhost:8000
+FRONTEND_URL=http://localhost:5173
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173
 MAIL_USERNAME=
 MAIL_PASSWORD=
@@ -79,6 +81,30 @@ Stop the API with Ctrl+C and stop backing services with
 `docker compose -f compose.local.yml down`. Database data persists in the
 project's Docker volume across restarts. Changing database credentials in `.env`
 after the volume has been initialized also requires updating the PostgreSQL role.
+
+## Hosted frontend connection
+
+Set these environment variables on the service hosting the deployed backend:
+
+```dotenv
+BASE_URL=https://headsup-api.aliahhmad.dev
+FRONTEND_URL=https://headsup.aliahhmad.dev
+CORS_ORIGINS=https://headsup.aliahhmad.dev
+```
+
+`BASE_URL` controls verification and password-reset email links. `FRONTEND_URL`
+redirects the API's password-reset page to the frontend. `CORS_ORIGINS` allows
+browser requests from the deployed frontend; use comma-separated exact origins
+without trailing slashes. If connecting a local frontend to this API, append
+`http://localhost:5173,http://127.0.0.1:5173` to the allowed origins.
+
+Restart or redeploy the backend after changing these settings. The local `.env`
+is ignored by Git, and `.env.example` is a reference; neither automatically
+updates environment variables on a hosted service. Keep production database,
+SMTP, and secret settings in the backend host's environment.
+
+In Vercel, the frontend uses `VITE_API_URL=https://headsup-api.aliahhmad.dev`.
+Redeploy the frontend after setting that build-time variable.
 
 ## Docker resources
 
