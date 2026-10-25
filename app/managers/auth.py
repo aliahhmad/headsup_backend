@@ -391,10 +391,6 @@ class AuthManager:
                 f"User {user_data.id} successfully verified", LogCategory.AUTH
             )
 
-            raise HTTPException(
-                status.HTTP_200_OK, ResponseMessages.VERIFICATION_SUCCESS
-            )
-
         except jwt.ExpiredSignatureError as exc:
             increment_auth_failure("expired_token", "verify_email")
             category_logger.warning(

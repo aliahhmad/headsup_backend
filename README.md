@@ -195,6 +195,13 @@ Register a new account through the frontend, open the email in that account's
 inbox (check spam too), and click the verification link within 10 minutes. CLI
 accounts are already verified and do not send this email.
 
+Browser verification links return to `FRONTEND_URL/login?verified=1` after
+verifying the account. The sign-in form displays a confirmation. Expired or
+invalid browser links return to the app's verification page with an error;
+the verification token is not included in the redirect URL. Requests accepting
+`application/json` retain the API's JSON success/error responses. If
+`FRONTEND_URL` is unset, the endpoint returns JSON for browsers as well.
+
 To return to Mailpit, use the local-development mail settings above. When the API
 runs inside Docker, set `MAIL_SERVER=mailpit`; when it runs on the host, use
 `MAIL_SERVER=127.0.0.1`. Docker reads the mail settings from `.env` without

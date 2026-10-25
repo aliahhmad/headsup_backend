@@ -249,10 +249,7 @@ class TestAuthManager:
             test_db, self.test_user, background_tasks
         )
         verify_token = AuthManager.encode_verify_token(User(id=user.id))
-        with pytest.raises(HTTPException) as exc_info:
-            await AuthManager.verify(verify_token, test_db)
-        assert exc_info.value.status_code == status.HTTP_200_OK
-        assert exc_info.value.detail == ResponseMessages.VERIFICATION_SUCCESS
+        await AuthManager.verify(verify_token, test_db)
 
         user_data = await UserManager.get_user_by_id(user.id, test_db)
         assert user_data.verified is True
@@ -354,10 +351,7 @@ class TestAuthManager:
 
         # Create and use a verification token
         verify_token = AuthManager.encode_verify_token(User(id=user.id))
-        with pytest.raises(HTTPException) as exc_info:
-            await AuthManager.verify(verify_token, test_db)
-        assert exc_info.value.status_code == status.HTTP_200_OK
-        assert exc_info.value.detail == ResponseMessages.VERIFICATION_SUCCESS
+        await AuthManager.verify(verify_token, test_db)
 
         # Get updated user state and verify the field was updated
         user_after = await UserManager.get_user_by_id(user.id, test_db)
@@ -817,10 +811,7 @@ class TestAuthManager:
             algorithm="HS256",
         )
         # Should succeed because we convert "1" to 1
-        with pytest.raises(HTTPException) as exc_info:
-            await AuthManager.verify(token_with_string_sub, test_db)
-        # Verify it succeeded with HTTP 200
-        assert exc_info.value.status_code == status.HTTP_200_OK
+        await AuthManager.verify(token_with_string_sub, test_db)
         # Verify the user was marked as verified
         user = await UserManager.get_user_by_id(user.id, test_db)
         assert user.verified is True

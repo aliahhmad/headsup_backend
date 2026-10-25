@@ -164,21 +164,56 @@ async def generate_refresh_token(
     return {"token": token}
 
 
-@router.get("/verify/", status_code=status.HTTP_200_OK)
+@router.get("/verify/", status_code=status.HTTP_200_OK, response_model=None)
 @rate_limited(RateLimits.VERIFY)
 async def verify(
-    request: Request,  # noqa: ARG001 - Required by slowapi decorator
+    request: Request,
     session: Annotated[AsyncSession, Depends(get_database)],
     code: str = "",
-) -> None:
+) -> dict[str, str] | RedirectResponse:
     """Verify a new user.
 
     The code is sent to  new user by email, which must then be validated here.
 
-    We dont need to return anything here, as success or errors will be handled
-    by FastAPI exceptions.
+    Browser links return to the configured frontend. JSON API clients retain
+    their existing success and error responses.
     """
-    await AuthManager.verify(code, session)
+    frontend = get_settings().frontend_url
+    browser = "text/html" in request.headers.get("accept", "").lower()
+    redirect_headers = {
+        "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
+    }
+    try:
+        await AuthManager.verify(code, session)
+    except HTTPException as exc:
+        if (
+            frontend
+            and browser
+            and exc.status_code
+            in {
+                status.HTTP_401_UNAUTHORIZED,
+                status.HTTP_404_NOT_FOUND,
+            }
+        ):
+            outcome = (
+                "expired"
+                if exc.detail == ResponseMessages.EXPIRED_TOKEN
+                else "invalid"
+            )
+            return RedirectResponse(
+                f"{frontend.rstrip('/')}/verify?status={outcome}",
+                status_code=status.HTTP_303_SEE_OTHER,
+                headers=redirect_headers,
+            )
+        raise
+    if frontend and browser:
+        return RedirectResponse(
+            f"{frontend.rstrip('/')}/login?verified=1",
+            status_code=status.HTTP_303_SEE_OTHER,
+            headers=redirect_headers,
+        )
+    return {"detail": ResponseMessages.VERIFICATION_SUCCESS}
 
 
 @router.post(
