@@ -72,55 +72,11 @@ Or on Windows:
 .venv\Scripts\activate
 ```
 
-## Set GitHub Actions Secrets
+## GitHub Actions
 
-The only secret you need to set for the GitHub Actions is for
-[Codacy](https://www.codacy.com/){:target="_blank"} which is used for automatic
-code quality checks and test coverage reports.
+The API's GitHub workflows run linting, type checking, dependency review, and
+security checks. Python tests and test coverage uploads are not run in GitHub
+Actions, so a Codacy token is not required for these workflows.
 
-### Codacy API Token
-
-To use this, you will need to set up a (free) acccount with
-[Codacy](https://www.codacy.com/signup-codacy) to get your project token. You
-will then need to set the following secrets in your GitHub repository settings
-(`Settings -> Secrets and variables`):
-
-- `CODACY_PROJECT_TOKEN` - Your Codacy Project Token.
-
-!!! tip
-
-    See the next section if you don't want to use Codacy for test coverage.
-
-Note that this is the specific repository secrets, not in your profile settings.
-See the [Codacy
-Docs](https://docs.codacy.com/codacy-api/api-tokens/#project-api-tokens){:target="_blank"}
-for more information and how to get your repository token.
-
-!!! danger "Important"
-
-    You will need to set the `CODACY_PROJECT_TOKEN` secret in your GitHub
-    repository settings both for `Actions` **AND** `Dependabot`. Set the same
-    variable and value in both places.
-
-    If you do not set this, the Codacy checks will fail and Dependabot will not
-    be able to merge Pull Requests.
-
-## Disable Test Coverage Reports (Optional)
-
-If you do not want to use Codacy for test coverage reports, you can disable the
-uploading of the reports by changing a variable in the
-`.github/workflows/tests.yml` file.
-
-Change the `SKIP_COVERAGE_UPLOAD` variable to `true` in the `env` section of the
-`tests` job. For example:
-
-```yaml hl_lines="5"
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    env:
-      SKIP_COVERAGE_UPLOAD: true
-    strategy:
-```
-
-To revert this, change it back to `false`.
+Run the test suite locally using the
+[local development instructions](../development/local.md).

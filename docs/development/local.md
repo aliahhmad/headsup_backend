@@ -71,8 +71,7 @@ This API has **Unit** and **Integration** tests using
     [Configuration](../usage/configuration/setup.md) section for full setup
     instructions.
 
-    Tests run on GitHub Actions use environment variables set in the CI workflow
-    and a hosted PostgreSQL test database.
+    The Python test suite runs locally against this configured test database.
 
 To run these from within the virtual environment use the `pytest` command:
 

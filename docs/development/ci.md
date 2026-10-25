@@ -1,8 +1,11 @@
 # Continuous Integration
 
 GitHub Actions checks every pull request and changes pushed to the main
-development branches. These checks cover code quality, typing, tests,
+development branches. These checks cover code quality, typing,
 dependencies, and the security of the GitHub Actions configuration itself.
+
+The Python test suite runs locally; there is no GitHub Actions test or coverage
+upload workflow.
 
 ## Run CI Checks Locally
 
