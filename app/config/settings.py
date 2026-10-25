@@ -30,6 +30,7 @@ except ModuleNotFoundError:  # pragma: no cover
 
 # Security validation constants
 MIN_SECRET_KEY_LENGTH = 32
+MAX_REFERRAL_CODE_LENGTH = 128
 
 
 def unwrap_secret(value: SecretStr | str) -> str:
@@ -67,6 +68,10 @@ class Settings(BaseSettings):
     no_root_route: bool = False
 
     cors_origins: str = "*"
+
+    # Optional invitation gate for public registration; the code stays private.
+    referral_code_enabled: bool = False
+    referral_code: SecretStr = SecretStr("")
 
     # Setup the Postgresql database.
     # IMPORTANT: Set DB_USER and DB_PASSWORD in your .env file!
@@ -201,6 +206,21 @@ class Settings(BaseSettings):
         if value and value.endswith("/"):
             return value[:-1]
         return value
+
+    @field_validator("referral_code")
+    @classmethod
+    def validate_referral_code(
+        cls: type[Settings], value: SecretStr, info: ValidationInfo
+    ) -> SecretStr:
+        """Require a configured code when invitation-only signup is enabled."""
+        code = unwrap_secret(value).strip()
+        if info.data.get("referral_code_enabled") and not code:
+            msg = "REFERRAL_CODE must be set when REFERRAL_CODE_ENABLED is true"
+            raise ValueError(msg)
+        if len(code) > MAX_REFERRAL_CODE_LENGTH:
+            msg = "REFERRAL_CODE must be at most 128 characters"
+            raise ValueError(msg)
+        return SecretStr(code)
 
     @field_validator("secret_key")
     @classmethod

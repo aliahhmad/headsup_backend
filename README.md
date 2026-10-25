@@ -82,6 +82,53 @@ Stop the API with Ctrl+C and stop backing services with
 project's Docker volume across restarts. Changing database credentials in `.env`
 after the volume has been initialized also requires updating the PostgreSQL role.
 
+## Referral-only demo signup
+
+To restrict public signup to invited demo users, configure the backend:
+
+```dotenv
+REFERRAL_CODE_ENABLED=true
+REFERRAL_CODE=<your private invitation code>
+```
+
+Choose a code of at most 128 characters (for example, generate one with
+`openssl rand -hex 16`) and share it with invited users. Codes are case-sensitive;
+surrounding whitespace is ignored. The same code can invite multiple people.
+Keep it in the backend's ignored `.env` or hosting secrets. It is never returned
+to the browser or stored on user accounts.
+
+`REFERRAL_CODE_ENABLED` supplies the initial policy (false by default). After
+signing in as an admin, open **Administration → Signup settings**, change
+**Require a referral code to sign up**, and select **Save changes**. The saved
+policy takes effect immediately, persists in the database across restarts, and
+overrides the environment default. Only admins can read or update the management
+endpoint at `GET/PATCH /admin/registration/settings/`.
+
+The code itself stays in backend configuration. Restart or redeploy after
+changing it. Enabling the environment default without a nonempty code fails
+startup validation; the admin switch also refuses to enable the gate without
+a configured code.
+
+Apply the new table migration before running the updated backend:
+
+```bash
+uv run --locked alembic upgrade head
+```
+
+The frontend reads `GET /registration/settings/` on entry, on focus, and before
+submission, shows the field only when required, and sends
+`POST /registration/referral-code/` with
+`{"referral_code":"…"}` before attempting registration. This standalone check
+does not create an account or send email. `POST /register/` independently checks
+the submitted `referral_code` before registration, so calling it directly or
+using an old preflight result cannot bypass the gate. With rate limiting enabled,
+code checks allow 10 attempts per minute; registration retains its own limit.
+Admin/CLI account provisioning and existing users' sign-in are unaffected.
+
+For a hosted demo, set these values on the backend host; changing your local
+`.env` does not update the deployed service. The frontend follows the backend
+policy without a separate frontend flag or build-time code.
+
 ## Hosted frontend connection
 
 Set these environment variables on the service hosting the deployed backend:

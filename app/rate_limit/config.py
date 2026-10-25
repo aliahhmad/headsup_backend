@@ -14,6 +14,9 @@ class RateLimits:
     # Registration - prevent spam account creation
     REGISTER: ClassVar[str] = "3/hour"
 
+    # Separate invitation checks must not consume account-creation attempts.
+    REFERRAL_CODE: ClassVar[str] = "10/minute"
+
     # Login - brute force protection
     LOGIN: ClassVar[str] = "5/15minutes"
 

@@ -10,6 +10,7 @@ from fastapi import (
     Depends,
     HTTPException,
     Request,
+    Response,
     status,
 )
 from fastapi.responses import RedirectResponse
@@ -28,18 +29,22 @@ from app.managers.helpers import (
     is_valid_jwt_format,
     validate_password_max_bytes,
 )
+from app.managers.referral import referral_code_required, validate_referral_code
 from app.managers.user import UserManager
 from app.models.user import User
 from app.rate_limit.config import RateLimits
 from app.rate_limit.decorators import rate_limited
 from app.schemas.request.auth import (
     ForgotPasswordRequest,
+    ReferralCodeRequest,
     ResetPasswordRequest,
     TokenRefreshRequest,
 )
 from app.schemas.request.user import UserLoginRequest, UserRegisterRequest
 from app.schemas.response.auth import (
     PasswordResetResponse,
+    ReferralCodeResponse,
+    RegistrationSettingsResponse,
     TokenRefreshResponse,
     TokenResponse,
 )
@@ -51,6 +56,34 @@ templates = Jinja2Templates(directory=template_folder)
 
 # Constants
 MIN_PASSWORD_LENGTH = 8
+
+
+@router.get(
+    "/registration/settings/",
+    response_model=RegistrationSettingsResponse,
+)
+async def registration_settings(
+    response: Response,
+    session: Annotated[AsyncSession, Depends(get_database)],
+) -> dict[str, bool]:
+    """Tell signup clients whether a referral code is currently required."""
+    response.headers["Cache-Control"] = "no-store"
+    return {"referral_code_required": await referral_code_required(session)}
+
+
+@router.post(
+    "/registration/referral-code/",
+    response_model=ReferralCodeResponse,
+)
+@rate_limited(RateLimits.REFERRAL_CODE)
+async def check_referral_code(
+    request: Request,  # noqa: ARG001 - Required by slowapi decorator
+    request_data: ReferralCodeRequest,
+    session: Annotated[AsyncSession, Depends(get_database)],
+) -> dict[str, bool]:
+    """Check demo access separately, without creating users or sending email."""
+    await validate_referral_code(request_data.referral_code, session)
+    return {"valid": True}
 
 
 @router.post(
@@ -75,8 +108,9 @@ async def register(
     endpoint to return a new JWT Token. The Refresh token will last 30 days, and
     cannot be refreshed.
     """
+    await validate_referral_code(user_data.referral_code, session)
     token, refresh = await UserManager.register(
-        user_data.model_dump(),
+        user_data.model_dump(exclude={"referral_code"}),
         session=session,
         background_tasks=background_tasks,
     )

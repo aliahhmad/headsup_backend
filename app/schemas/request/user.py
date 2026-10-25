@@ -46,6 +46,11 @@ class UserRegisterRequest(UserBase):
     )
     first_name: str = Field(examples=[ExampleUser.first_name], max_length=30)
     last_name: str = Field(examples=[ExampleUser.last_name], max_length=50)
+    referral_code: str | None = Field(
+        default=None,
+        max_length=128,
+        description="Required only when referral-code registration is enabled",
+    )
 
 
 class UserLoginRequest(UserBase):
