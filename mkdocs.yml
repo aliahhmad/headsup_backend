@@ -66,6 +66,7 @@ nav:
           - Overview: usage/user-management.md
           - Add a User: usage/add-user.md
           - User Control via CLI: usage/user-control.md
+      - Monitors: monitors.md
       - API Keys: usage/api-keys.md
       - Admin Panel: usage/admin-panel.md
       - Caching and Performance: usage/caching.md

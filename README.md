@@ -7,9 +7,10 @@ what they care about; HeadsUp aims to follow relevant sources, remember past
 developments, and notify them only when something meaningful changes.
 
 This repository contains the FastAPI backend foundation. Authentication, user
-management, API keys, password recovery, administration, and local development
-services are available. Topic monitors, scheduled collection, AI analysis, and
-change notifications are planned product features.
+management, API keys, password recovery, administration, monitor management,
+and local development services are available. Monitor creation initializes its
+workspace and queues an initial check. Scheduled collection, check execution,
+AI conversations, analysis, and change notifications are still planned features.
 
 ## HeadsUp local development
 
@@ -81,6 +82,31 @@ Stop the API with Ctrl+C and stop backing services with
 `docker compose -f compose.local.yml down`. Database data persists in the
 project's Docker volume across restarts. Changing database credentials in `.env`
 after the volume has been initialized also requires updating the PostgreSQL role.
+
+## Monitor backend
+
+Authenticated users can create, list, read, edit, pause, archive, reactivate,
+and soft-delete their own monitors through `/monitors`. Creation atomically
+saves a persistent chat, context and knowledge memories with initial revisions,
+and a queued initial run. The default check interval is one day. Existing
+integer user IDs are preserved; monitoring records use UUIDs.
+
+Apply the additive migration before using these routes:
+
+```bash
+uv run --locked alembic upgrade head
+```
+
+Configuration updates and deletion require `expected_version` to reject stale
+changes. `POST /monitors/{id}/checks` queues a manual check or returns an existing
+in-flight run; run history is available under `/monitors/{id}/runs`. Checks are
+durable requests only: this step does not install a worker, scheduler, external
+research, or AI execution. A queued check stays queued until a future worker
+handles it, or the monitor lifecycle cancels it.
+
+See [the monitor API guide](docs/monitors.md) for request examples, lifecycle
+rules, limits, and the boundaries of this first backend step. The endpoints also
+appear under **Monitors** in `/docs`.
 
 ## Referral-only demo signup
 
