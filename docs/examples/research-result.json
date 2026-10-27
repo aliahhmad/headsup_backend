@@ -1,0 +1,13 @@
+{
+  "observations": [
+    {
+      "summary": "Offline fixture: an example internship has opened. This is synthetic test data.",
+      "sources": [
+        {
+          "source_url": "https://example.com/careers/example-internship",
+          "source_title": "Synthetic internship listing"
+        }
+      ]
+    }
+  ]
+}

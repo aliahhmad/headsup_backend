@@ -75,3 +75,39 @@ class MonitorDetailResponse(MonitorResponse):
     chat: MonitorChatResponse
     memories: list[MonitorMemoryResponse]
     latest_run: MonitorRunResponse | None
+
+
+class ObservationSourceResponse(BaseModel):
+    """Source metadata belonging to a saved observation."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    observation_id: UUID
+    source_key: str
+    source_url: str
+    source_title: str | None
+    source_published_at: datetime | None
+    retrieved_at: datetime
+    evidence_excerpt: str | None
+    content_hash: str | None
+    created_at: datetime
+
+
+class ObservationResponse(BaseModel):
+    """A consolidated finding with its supporting evidence."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    monitor_run_id: UUID
+    item_key: str
+    summary: str
+    created_at: datetime
+    sources: list[ObservationSourceResponse]
+
+
+class MonitorRunDetailResponse(MonitorRunResponse):
+    """Execution state and evidence-backed findings from this run."""
+
+    observations: list[ObservationResponse]

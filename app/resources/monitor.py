@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.db import get_database
 from app.managers import monitor as manager
 from app.managers.security import get_current_user
-from app.models.monitor import MonitorRun
+from app.models.monitor import MonitorRun, Observation, ObservationSource
 from app.models.user import User
 from app.schemas.request.monitor import (
     MonitorCheckRequest,
@@ -23,7 +23,10 @@ from app.schemas.request.monitor import (
 from app.schemas.response.monitor import (
     MonitorDetailResponse,
     MonitorResponse,
+    MonitorRunDetailResponse,
     MonitorRunResponse,
+    ObservationResponse,
+    ObservationSourceResponse,
 )
 
 
@@ -138,7 +141,7 @@ async def get_run(
     run_id: UUID,
     user: CurrentUser,
     db: Database,
-) -> MonitorRunResponse:
+) -> MonitorRunDetailResponse:
     """Read a run only through its owned, accessible parent monitor."""
     await manager.owned_monitor(monitor_id, user.id, db)
     run = await db.scalar(
@@ -148,4 +151,35 @@ async def get_run(
     )
     if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Monitor run not found")
-    return MonitorRunResponse.model_validate(run)
+    observations = list(
+        await db.scalars(
+            select(Observation)
+            .where(Observation.monitor_run_id == run.id)
+            .order_by(Observation.created_at, Observation.id)
+        )
+    )
+    sources = await db.scalars(
+        select(ObservationSource)
+        .join(Observation, Observation.id == ObservationSource.observation_id)
+        .where(Observation.monitor_run_id == run.id)
+        .order_by(ObservationSource.created_at, ObservationSource.id)
+    )
+    by_observation: dict[UUID, list[ObservationSourceResponse]] = {}
+    for source in sources:
+        by_observation.setdefault(source.observation_id, []).append(
+            ObservationSourceResponse.model_validate(source)
+        )
+    return MonitorRunDetailResponse(
+        **MonitorRunResponse.model_validate(run).model_dump(),
+        observations=[
+            ObservationResponse(
+                id=observation.id,
+                monitor_run_id=observation.monitor_run_id,
+                item_key=observation.item_key,
+                summary=observation.summary,
+                created_at=observation.created_at,
+                sources=by_observation.get(observation.id, []),
+            )
+            for observation in observations
+        ],
+    )

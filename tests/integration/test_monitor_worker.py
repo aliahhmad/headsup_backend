@@ -1,0 +1,336 @@
+"""Exercise queue execution, atomic evidence, and stale-input rejection."""
+
+# ruff: noqa: PLR2004
+
+import asyncio
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
+
+import pytest
+import pytest_asyncio
+from httpx import AsyncClient
+from pytest_mock import MockerFixture
+from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+
+from app.commands.worker import FixtureResearch
+from app.managers.auth import AuthManager
+from app.managers.monitor import create_monitor
+from app.managers.monitor_worker import claim_next, process_next, save_result
+from app.managers.research import ResearchError
+from app.models.monitor import (
+    Memory,
+    MemoryRevision,
+    Monitor,
+    MonitorRun,
+    Observation,
+    ObservationSource,
+    utc_now,
+)
+from app.models.user import User
+from app.schemas.request.monitor import MonitorCreate
+from app.schemas.research import ResearchResult
+
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+
+
+@pytest_asyncio.fixture
+async def queued_run(test_db: AsyncSession) -> MonitorRun:
+    """Persist a real owned monitor with its initial queued check."""
+    user = User(
+        email=f"{uuid4().hex}@example.test",
+        password="unused-worker-test-password",  # noqa: S106
+        first_name="Worker",
+        last_name="Owner",
+        verified=True,
+        banned=False,
+    )
+    test_db.add(user)
+    await test_db.flush()
+    monitor = await create_monitor(
+        MonitorCreate(
+            name="Internships",
+            objective="Find backend internships",
+            monitor_context="Summer 2027 in New York",
+        ),
+        user.id,
+        test_db,
+    )
+    await test_db.commit()
+    return (
+        await test_db.scalars(
+            select(MonitorRun).where(MonitorRun.monitor_id == monitor.id)
+        )
+    ).one()
+
+
+def findings() -> ResearchResult:
+    """Two developments, with duplicate reports consolidated by persistence."""
+    return ResearchResult.model_validate(
+        {
+            "observations": [
+                {
+                    "summary": "Company A opened internship applications.",
+                    "sources": [
+                        {
+                            "source_url": "https://example.com/a",
+                            "source_title": "A",
+                        },
+                        {
+                            "source_url": "https://example.com/a",
+                            "source_title": "A",
+                        },
+                        {"source_url": "https://example.com/report"},
+                    ],
+                },
+                {
+                    "summary": "Company B changed its application deadline.",
+                    "sources": [{"source_url": "https://example.com/b"}],
+                },
+            ]
+        }
+    )
+
+
+async def test_success_saves_findings_without_changing_memory(
+    queued_run: MonitorRun,
+    test_db: AsyncSession,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    mocker: MockerFixture,
+    client: AsyncClient,
+) -> None:
+    """Evidence is readable by its owner and does not update memory."""
+    research = mocker.AsyncMock(return_value=findings())
+    assert await process_next(test_sessionmaker, research) == queued_run.id
+    await test_db.refresh(queued_run)
+    assert queued_run.status == "succeeded"
+    assert queued_run.attempt_count == 1
+    assert queued_run.started_at is not None
+    assert queued_run.completed_at is not None
+    saved = list(await test_db.scalars(select(Observation)))
+    assert len(saved) == 2
+    assert await test_db.scalar(select(func.count(ObservationSource.id))) == 3
+    for source in await test_db.scalars(select(ObservationSource)):
+        assert source.retrieved_at.tzinfo is not None
+        assert source.source_published_at is None
+        assert source.evidence_excerpt is None
+        assert source.content_hash is None
+    memories = list(await test_db.scalars(select(Memory)))
+    assert {memory.version for memory in memories} == {1}
+    assert await test_db.scalar(select(func.count(MemoryRevision.id))) == 2
+    research.assert_awaited_once()
+    assert await process_next(test_sessionmaker, research) is None
+
+    monitor = await test_db.get(Monitor, queued_run.monitor_id)
+    owner = await test_db.get(User, monitor.user_id)
+    headers = {"Authorization": f"Bearer {AuthManager.encode_token(owner)}"}
+    response = await client.get(
+        f"/monitors/{monitor.id}/runs/{queued_run.id}", headers=headers
+    )
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert len(response.json()["observations"]) == 2
+    assert sum(len(o["sources"]) for o in response.json()["observations"]) == 3
+    assert (
+        await client.get(f"/monitors/{monitor.id}/runs/{queued_run.id}")
+    ).status_code == 401
+
+
+async def test_no_findings_is_successful(
+    queued_run: MonitorRun,
+    test_db: AsyncSession,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    mocker: MockerFixture,
+) -> None:
+    """An empty successful research result does not fabricate observations."""
+    research = mocker.AsyncMock(return_value=ResearchResult(observations=[]))
+    await process_next(test_sessionmaker, research)
+    await test_db.refresh(queued_run)
+    assert queued_run.status == "succeeded"
+    assert await test_db.scalar(select(func.count(Observation.id))) == 0
+
+
+async def test_offline_fixture_finishes_a_real_queued_run(
+    queued_run: MonitorRun,
+    test_db: AsyncSession,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
+    """The documented fixture works through the queue-to-database pipeline."""
+    fixture = Path(__file__).parents[2] / "docs/examples/research-result.json"
+    await process_next(test_sessionmaker, FixtureResearch(fixture))
+    await test_db.refresh(queued_run)
+    assert queued_run.status == "succeeded"
+    observation = (await test_db.scalars(select(Observation))).one()
+    assert "synthetic test data" in observation.summary
+    source = (await test_db.scalars(select(ObservationSource))).one()
+    assert source.observation_id == observation.id
+    assert source.source_url == "https://example.com/careers/example-internship"
+
+
+async def test_graceful_cancellation_fails_running_check(
+    queued_run: MonitorRun,
+    test_db: AsyncSession,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    mocker: MockerFixture,
+) -> None:
+    """Graceful shutdown does not strand the claimed run or publish outputs."""
+    with pytest.raises(asyncio.CancelledError):
+        await process_next(
+            test_sessionmaker,
+            mocker.AsyncMock(side_effect=asyncio.CancelledError),
+        )
+    await test_db.refresh(queued_run)
+    assert queued_run.status == "failed"
+    assert queued_run.error_code == "worker_interrupted"
+    assert await test_db.scalar(select(func.count(Observation.id))) == 0
+
+
+async def test_provider_failure_is_terminal_without_evidence(
+    queued_run: MonitorRun,
+    test_db: AsyncSession,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    mocker: MockerFixture,
+) -> None:
+    """The next poll does not silently repeat a failed paid research request."""
+    research = mocker.AsyncMock(side_effect=ResearchError("openai_http_429"))
+    await process_next(test_sessionmaker, research)
+    await test_db.refresh(queued_run)
+    assert queued_run.status == "failed"
+    assert queued_run.error_code == "openai_http_429"
+    assert await test_db.scalar(select(func.count(Observation.id))) == 0
+    assert await process_next(test_sessionmaker, research) is None
+    research.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "change", ["configuration", "memory", "archive", "delete"]
+)
+async def test_changes_during_research_discard_outputs(
+    change: str,
+    queued_run: MonitorRun,
+    test_db: AsyncSession,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
+    """Results cannot overwrite changes made while OpenAI was running."""
+
+    async def research(
+        objective: str, context: dict[str, Any]
+    ) -> ResearchResult:
+        async with test_sessionmaker() as session, session.begin():
+            monitor = await session.get(Monitor, queued_run.monitor_id)
+            if change == "configuration":
+                monitor.objective = "A different objective"
+                monitor.version += 1
+            elif change == "memory":
+                memory = (await session.scalars(select(Memory))).first()
+                memory.content = "Updated while research was running"
+                memory.version += 1
+            else:
+                monitor.status = "archived"
+                monitor.next_run_at = None
+                if change == "delete":
+                    monitor.deleted_at = utc_now()
+        return findings()
+
+    await process_next(test_sessionmaker, research)
+    await test_db.refresh(queued_run)
+    assert queued_run.status == "cancelled"
+    assert queued_run.error_code == "superseded_inputs"
+    assert await test_db.scalar(select(func.count(Observation.id))) == 0
+
+
+async def test_source_failure_rolls_back_observation(
+    queued_run: MonitorRun,
+    test_db: AsyncSession,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    mocker: MockerFixture,
+) -> None:
+    """Fail after an observation flush and prove the parent is rolled back."""
+    mocker.patch(
+        "app.managers.monitor_worker.ObservationSource",
+        side_effect=RuntimeError("simulated source persistence failure"),
+    )
+    await process_next(
+        test_sessionmaker, mocker.AsyncMock(return_value=findings())
+    )
+    await test_db.refresh(queued_run)
+    assert queued_run.status == "failed"
+    assert await test_db.scalar(select(func.count(Observation.id))) == 0
+    assert await test_db.scalar(select(func.count(ObservationSource.id))) == 0
+
+
+async def test_finalization_is_idempotent(
+    queued_run: MonitorRun,
+    test_db: AsyncSession,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+) -> None:
+    """Duplicate completion cannot publish a second set of evidence records."""
+    claimed = await claim_next(test_sessionmaker)
+    assert claimed is not None
+    assert await claim_next(test_sessionmaker) is None
+    await save_result(test_sessionmaker, claimed, findings())
+    await save_result(test_sessionmaker, claimed, findings())
+    assert await test_db.scalar(select(func.count(Observation.id))) == 2
+    assert await test_db.scalar(select(func.count(ObservationSource.id))) == 3
+
+
+@pytest.mark.parametrize("manual", [False, True])
+async def test_paused_monitor_only_runs_manual_checks(
+    *,
+    manual: bool,
+    queued_run: MonitorRun,
+    test_db: AsyncSession,
+    test_sessionmaker: async_sessionmaker[AsyncSession],
+    mocker: MockerFixture,
+) -> None:
+    """Respect paused state if a queued record escaped cancellation."""
+    monitor = await test_db.get(Monitor, queued_run.monitor_id)
+    monitor.status = "paused"
+    monitor.next_run_at = None
+    if manual:
+        queued_run.trigger = "manual"
+    await test_db.commit()
+    research = mocker.AsyncMock(return_value=findings())
+    await process_next(test_sessionmaker, research)
+    await test_db.refresh(queued_run)
+    assert queued_run.status == ("succeeded" if manual else "cancelled")
+    assert research.await_count == int(manual)
+
+
+async def test_concurrent_workers_claim_only_once(
+    test_engine: AsyncEngine,
+) -> None:
+    """Separate PostgreSQL transactions cannot claim the same queued check."""
+    sessions = async_sessionmaker(test_engine, expire_on_commit=False)
+    async with sessions() as session:
+        owner = User(
+            email=f"{uuid4().hex}@example.test",
+            password="unused-concurrency-password",  # noqa: S106
+            first_name="Worker",
+            last_name="Concurrency",
+            verified=True,
+        )
+        session.add(owner)
+        await session.flush()
+        monitor = await create_monitor(
+            MonitorCreate(name="Concurrent", objective="Find internships"),
+            owner.id,
+            session,
+        )
+        await session.commit()
+    try:
+        claims = await asyncio.gather(
+            claim_next(sessions), claim_next(sessions)
+        )
+        assert sum(claim is not None for claim in claims) == 1
+        async with sessions() as session:
+            run = (await session.scalars(select(MonitorRun))).one()
+            assert run.status == "running"
+            assert run.attempt_count == 1
+    finally:
+        async with sessions() as session, session.begin():
+            await session.execute(
+                delete(Monitor).where(Monitor.id == monitor.id)
+            )
+            await session.execute(delete(User).where(User.id == owner.id))

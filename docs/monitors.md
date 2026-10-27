@@ -1,17 +1,19 @@
 # Monitor backend
 
-This is the first persistence and management step for HeadsUp monitors.
-It provides authenticated configuration, initialized workspace records, and
-durable check requests. It does not run searches, call an AI, send alerts,
-process chat messages, or periodically enqueue scheduled work.
+HeadsUp provides authenticated monitor configuration, initialized workspace
+records, and durable check requests. The separately started [research
+worker](monitor-worker.md) polls queued checks every five seconds, calls OpenAI,
+and saves observations and source evidence. It does not update memory, send
+alerts, process chat messages, or periodically enqueue scheduled work.
 
 ## Setup and authorization
 
 Apply `alembic upgrade head` before running the updated API. The
 `add_monitor_foundation` migration adds `monitors`, `chats`, `messages`,
-`memories`, `memory_revisions`, and `monitor_runs`. Existing user and API-key
-tables are unchanged. User ownership uses the existing integer `users.id`;
-monitoring records use UUIDs.
+`memories`, `memory_revisions`, and `monitor_runs`. The subsequent
+`add_observation_evidence` migration adds `observations` and
+`observation_sources`. Existing user and API-key tables are unchanged. User
+ownership uses the existing integer `users.id`; monitoring records use UUIDs.
 
 All routes use the existing verified, non-banned user authentication through a
 bearer token or API key. Records are scoped to that account, including for
@@ -133,11 +135,13 @@ known request retries are checked before the cooldown. Manual checks do not
 reset the monitor's automatic schedule.
 
 Runs snapshot the objective and current monitor memory IDs, versions, and
-contents. Chat summaries and raw messages are not run inputs. The future worker
-must refresh relevant inputs consistently at first execution, then freeze them
-for that logical run. Relevant shared-profile selection and evidence retrieval
-belong to that execution step.
+contents. Chat summaries and raw messages are not run inputs. The worker refreshes
+relevant inputs consistently at first execution, then freezes them for that
+logical run. Relevant shared-profile selection is deferred; only this monitor's
+context and knowledge are currently sent to research.
 
-Queued status means the request is saved, not that external research has
-happened. No run-start or completion endpoint is publicly exposed. Observation,
-source, alert, and delivery models remain a subsequent implementation step.
+Queued status means the request is saved, not that research has happened.
+The worker claims it and commits observations, sources, and successful completion
+atomically. No run-start or completion endpoint is publicly exposed. Run detail
+includes `observations`, each with its `sources`. Alert and delivery models remain
+a subsequent implementation step.

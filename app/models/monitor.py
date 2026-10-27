@@ -184,7 +184,7 @@ class Memory(Identity, Base):
 
 
 class MonitorRun(Identity, Base):
-    """A durable check request; this foundation does not execute checks."""
+    """A durable check request claimed and completed by the worker."""
 
     __tablename__ = "monitor_runs"
     __table_args__ = (
@@ -228,6 +228,43 @@ class MonitorRun(Identity, Base):
         DateTime(timezone=True)
     )
     error_code: Mapped[str | None] = mapped_column(String(120))
+
+
+class Observation(Identity, Base):
+    """One immutable development discovered during a check."""
+
+    __tablename__ = "observations"
+    __table_args__ = (
+        UniqueConstraint("monitor_run_id", "item_key"),
+        UniqueConstraint("id", "monitor_run_id"),
+        CheckConstraint("summary ~ '[^[:space:]]'", name="nonblank_summary"),
+    )
+
+    monitor_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("monitor_runs.id", ondelete="CASCADE"), index=True
+    )
+    item_key: Mapped[str] = mapped_column(Text)
+    summary: Mapped[str] = mapped_column(Text)
+
+
+class ObservationSource(Identity, Base):
+    """Evidence supporting one observation, retained with that finding."""
+
+    __tablename__ = "observation_sources"
+    __table_args__ = (UniqueConstraint("observation_id", "source_key"),)
+
+    observation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("observations.id", ondelete="CASCADE")
+    )
+    source_key: Mapped[str] = mapped_column(Text)
+    source_url: Mapped[str] = mapped_column(Text)
+    source_title: Mapped[str | None] = mapped_column(Text)
+    source_published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    evidence_excerpt: Mapped[str | None] = mapped_column(Text)
+    content_hash: Mapped[str | None] = mapped_column(Text)
 
 
 class MemoryRevision(Identity, Base):

@@ -10,7 +10,13 @@ from typing import TYPE_CHECKING, cast
 from urllib.parse import quote
 
 from cryptography.fernet import Fernet
-from pydantic import Field, SecretStr, ValidationInfo, field_validator
+from pydantic import (
+    AliasChoices,
+    Field,
+    SecretStr,
+    ValidationInfo,
+    field_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.config.helpers import get_project_root
@@ -82,6 +88,15 @@ class Settings(BaseSettings):
     db_name: str = "headsup"
 
     test_with_postgres: bool = False
+
+    # Used only by the explicitly started research worker.
+    openai_api_key: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices(
+            "OPENAI_API_KEY", "openai_api_key", "chat-gpt-api-key"
+        ),
+    )
+    openai_model: str = "gpt-5.4-mini"
 
     # Setup the TEST Postgresql database.
     # Note: Safe defaults for local/CI testing only

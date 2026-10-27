@@ -4,7 +4,7 @@ import typer
 from rich import print as rprint
 from rich.panel import Panel
 
-from app.commands import custom, db, dev, docs, keys, test, user
+from app.commands import custom, db, dev, docs, keys, test, user, worker
 from app.config.helpers import get_api_details, get_api_version
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -77,6 +77,7 @@ app.add_typer(
     name="keys",
     help="Generate security keys for the application.",
 )
+app.add_typer(worker.app, name="worker", help="Process queued monitor checks.")
 
 if __name__ == "__main__":  # pragma: no cover
     app()
