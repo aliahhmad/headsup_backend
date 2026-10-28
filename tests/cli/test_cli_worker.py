@@ -58,6 +58,6 @@ async def test_poll_waits_five_seconds(mocker: MockerFixture) -> None:
         side_effect=KeyboardInterrupt,
     )
     with pytest.raises(KeyboardInterrupt):
-        await worker.poll(mocker.AsyncMock(), once=False)
+        await worker.poll(mocker.AsyncMock(), mocker.AsyncMock(), once=False)
     process.assert_awaited_once()
     sleep.assert_awaited_once_with(5)

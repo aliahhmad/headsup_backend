@@ -3,8 +3,10 @@
 HeadsUp provides authenticated monitor configuration, initialized workspace
 records, and durable check requests. The separately started [research
 worker](monitor-worker.md) polls queued checks every five seconds, calls OpenAI,
-and saves observations and source evidence. It does not update memory, send
-alerts, process chat messages, or periodically enqueue scheduled work.
+and saves observations and source evidence. Runs with findings also merge current
+`monitor_knowledge` and save a run-linked revision when it changes. Monitor context
+and personal memory are not changed. Alerts, chat processing, and periodic
+schedule enqueueing remain deferred.
 
 ## Setup and authorization
 
@@ -141,7 +143,9 @@ logical run. Relevant shared-profile selection is deferred; only this monitor's
 context and knowledge are currently sent to research.
 
 Queued status means the request is saved, not that research has happened.
-The worker claims it and commits observations, sources, and successful completion
-atomically. No run-start or completion endpoint is publicly exposed. Run detail
+The worker claims it and commits observations, sources, accepted knowledge changes,
+their revisions, and successful completion atomically. Read the current knowledge
+and its version through `GET /monitors/{id}`; run snapshots retain the inputs used,
+not the newly produced knowledge. No run-start or completion endpoint is publicly exposed. Run detail
 includes `observations`, each with its `sources`. Alert and delivery models remain
 a subsequent implementation step.

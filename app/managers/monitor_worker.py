@@ -1,4 +1,4 @@
-"""Claim queued checks, research outside transactions, and save evidence."""
+"""Research outside transactions; atomically save evidence and knowledge."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from app.logs import logger
 from app.managers.research import ResearchError
 from app.models.monitor import (
     Memory,
+    MemoryRevision,
     Monitor,
     MonitorRun,
     Observation,
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-    from app.schemas.research import ResearchResult
+    from app.schemas.research import KnowledgeUpdate, ResearchResult
 
 RESEARCH_TIMEOUT_SECONDS = 300
 
@@ -37,6 +38,16 @@ class Researcher(Protocol):
         self, objective: str, context: dict[str, Any]
     ) -> ResearchResult:
         """Return supported findings for the frozen run inputs."""
+        ...
+
+
+class KnowledgeMerger(Protocol):
+    """Produce full knowledge snapshots without writing database state."""
+
+    async def __call__(
+        self, objective: str, previous_knowledge: str, result: ResearchResult
+    ) -> KnowledgeUpdate:
+        """Preserve useful prior knowledge and merge evidence-backed changes."""
         ...
 
 
@@ -166,8 +177,9 @@ async def save_result(
     sessions: async_sessionmaker[AsyncSession],
     claimed: ClaimedRun,
     result: ResearchResult,
+    knowledge_update: KnowledgeUpdate | None,
 ) -> None:
-    """Finalize findings and sources atomically, rejecting stale results."""
+    """Reject stale inputs; commit evidence, knowledge, and success together."""
     async with sessions() as session, session.begin():
         monitor = await session.get(
             Monitor, claimed.monitor_id, with_for_update=True
@@ -189,6 +201,10 @@ async def save_result(
             run.error_code = "superseded_inputs"
             run.completed_at = utc_now()
             return
+
+        if bool(result.observations) != (knowledge_update is not None):
+            code = "invalid_knowledge_update"
+            raise ResearchError(code)
 
         retrieved_at = utc_now()
         findings: dict[str, Observation] = {}
@@ -219,15 +235,64 @@ async def save_result(
                         retrieved_at=retrieved_at,
                     )
                 )
-        # Sources are mandatory in ResearchResult; flush all before success.
+        if knowledge_update is not None:
+            knowledge = (
+                await session.scalars(
+                    select(Memory).where(
+                        Memory.monitor_id == monitor.id,
+                        Memory.user_id == monitor.user_id,
+                        Memory.kind == "monitor_knowledge",
+                    )
+                )
+            ).one()
+            if knowledge.content.strip() != knowledge_update.content:
+                knowledge.content = knowledge_update.content
+                knowledge.version += 1
+                knowledge.updated_at = utc_now()
+                session.add(
+                    MemoryRevision(
+                        memory_id=knowledge.id,
+                        version=knowledge.version,
+                        content=knowledge.content,
+                        change_reason=knowledge_update.change_reason,
+                        source_kind="run",
+                        source_run_id=run.id,
+                    )
+                )
+        # Sources and accepted knowledge must be durable before success.
         await session.flush()
         run.status = "succeeded"
         run.completed_at = utc_now()
         run.error_code = None
 
 
+async def research_and_merge(
+    claimed: ClaimedRun,
+    researcher: Researcher,
+    knowledge_merger: KnowledgeMerger,
+) -> tuple[ResearchResult, KnowledgeUpdate | None]:
+    """Keep every provider call outside transactions and within one timeout."""
+    result = await researcher(claimed.objective, claimed.context)
+    if not result.observations:
+        return result, None
+    knowledge = [
+        item
+        for item in claimed.context.get("memories", [])
+        if item["kind"] == "monitor_knowledge"
+    ]
+    if len(knowledge) != 1:
+        code = "monitor_knowledge_missing"
+        raise ResearchError(code)
+    update = await knowledge_merger(
+        claimed.objective, knowledge[0]["content"], result
+    )
+    return result, update
+
+
 async def process_next(
-    sessions: async_sessionmaker[AsyncSession], researcher: Researcher
+    sessions: async_sessionmaker[AsyncSession],
+    researcher: Researcher,
+    knowledge_merger: KnowledgeMerger,
 ) -> UUID | None:
     """Execute at most one queued check; failed checks are not auto-retried."""
     claimed = await claim_next(sessions)
@@ -235,11 +300,11 @@ async def process_next(
         return None
     logger.info("Researching monitor run {}", claimed.id)
     try:
-        result = await asyncio.wait_for(
-            researcher(claimed.objective, claimed.context),
+        result, knowledge_update = await asyncio.wait_for(
+            research_and_merge(claimed, researcher, knowledge_merger),
             timeout=RESEARCH_TIMEOUT_SECONDS,
         )
-        await save_result(sessions, claimed, result)
+        await save_result(sessions, claimed, result, knowledge_update)
     except asyncio.CancelledError:
         await asyncio.shield(fail_run(sessions, claimed, "worker_interrupted"))
         raise

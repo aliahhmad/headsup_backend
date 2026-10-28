@@ -2,8 +2,10 @@
 
 This increment polls existing queued monitor runs every five seconds, researches
 their objectives with OpenAI web search, and saves `Observation` and
-`ObservationSource` records. It stops there: no knowledge-memory updates,
-threshold evaluation, alerts, deliveries, or periodic scheduling are implemented.
+`ObservationSource` records. Runs with findings merge current `monitor_knowledge`
+and save a revision when its content changes. Monitor context and personal memory
+are not changed. Threshold evaluation, alerts, deliveries, and periodic scheduling
+remain deferred.
 The five-second interval is queue polling, not a request to repeat every monitor's
 research every five seconds. One worker processes one run at a time.
 
@@ -27,11 +29,31 @@ For one queue check that processes at most one run:
 uv run --locked api-admin worker --once
 ```
 
-Live research normally makes two Responses API requests: first a required web
-search with citations, then a structured extraction that groups the cited answer
-into developments. The extractor receives backend-assigned citation IDs and may
-only reference those IDs. It does not get to invent source URLs. Empty research
-without citations produces zero observations; an empty queue makes no API calls.
+Live research with findings normally makes three Responses API requests: web
+search with citations, structured extraction that groups the cited answer into
+developments, then a structured knowledge merge. The extractor receives
+backend-assigned citation IDs and may only reference those IDs. It does not get to invent source URLs. Empty research
+without citations produces zero observations. The merge is skipped when extraction
+returns no observations, and an empty queue makes no API calls.
+
+## Knowledge updates
+
+The merge receives the objective, frozen previous `monitor_knowledge`, and validated
+observations with their supporting sources. Its prompt requests the complete
+updated knowledge, preserving still-relevant facts, adding supported findings,
+avoiding duplicates, and keeping unresolved conflicts and uncertainty explicit.
+Missing information in the latest run does not justify forgetting earlier facts.
+The response contains only `content` (1–20,000 characters) and `change_reason`
+(1–1,000 characters); blank, oversized, malformed, or extra fields are rejected.
+Structured output validates shape, not the factual correctness of the merge.
+
+When trimmed content changes, the worker increments only that monitor's knowledge
+version and inserts a full `MemoryRevision` with `source_kind=run` and
+`source_run_id`. Identical trimmed content creates no revision or timestamp change.
+Zero-observation runs retain knowledge and skip the merge request. Detailed evidence
+remains in observations and sources. Next checks read the current knowledge, while
+the completed run retains its original input snapshot. Context edits and personal
+memory are outside this flow. No migration is needed for this update.
 
 ## Offline dry run
 
@@ -48,6 +70,12 @@ eligible run. Use a disposable development monitor. This is an offline pipeline
 exercise, not a transaction rollback. A malformed fixture is rejected before any
 run is claimed. Live mode is selected by omitting `--fixture`.
 
+Fixtures must include `knowledge_update` containing the complete replacement
+`content` and `change_reason` when observations exist, or `null` for zero
+observations. Fixture mode does not merge with existing knowledge: it writes that
+explicit snapshot. Use only a disposable monitor, as the fixture can replace its
+previous knowledge.
+
 ## Inspect the results
 
 Read the existing authenticated endpoint:
@@ -58,6 +86,7 @@ GET /monitors/{monitor_id}/runs/{run_id}
 
 The response includes `status`, `error_code`, and an `observations` array. Each
 observation contains its summary and a `sources` array with all evidence fields.
+Read current knowledge and its version through `GET /monitors/{monitor_id}`.
 Run-list responses remain lightweight. Access is checked through the owning,
 non-deleted monitor, and responses use `Cache-Control: no-store`.
 
@@ -78,13 +107,15 @@ saved source links as visible, clickable citations in any results UI.
   checks lifecycle, configuration, memory versions/content, and attempt identity.
   Stale results are discarded and the run is cancelled with `superseded_inputs`.
   Paused monitors permit manual runs; archived/deleted ones permit none.
-- Every saved observation has at least one source. All observations, sources, and
-  successful completion commit together. Duplicate output entries are merged;
-  unique run/item and observation/source keys provide database protection.
+- Every saved observation has at least one source. All observations, sources,
+  accepted knowledge changes, revisions, and successful completion commit together.
+  A merge or revision failure publishes no outputs or memory changes.
+  Duplicate output entries are merged; unique run/item and observation/source keys provide database protection.
 - Provider failures, refusals, malformed results, unknown citation IDs, and timeouts
   fail the run without publishing evidence. Safe error codes are stored instead
   of provider bodies, credentials, or personal input. Research has a five-minute
-  overall timeout. Failed runs are not automatically retried.
+  overall timeout including knowledge merging. Failed runs are not automatically
+  retried.
 - Graceful cancellation records `worker_interrupted`. A hard process kill or
   database outage during completion can leave a run `running`. Automatic lease
   recovery is deferred: stop the affected worker and reconcile that run before

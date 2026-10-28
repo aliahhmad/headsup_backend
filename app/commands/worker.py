@@ -13,9 +13,17 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.config.settings import get_settings
 from app.database.db import async_engine, async_session
 from app.logs import logger
-from app.managers.monitor_worker import Researcher, process_next
+from app.managers.monitor_worker import (
+    KnowledgeMerger,
+    Researcher,
+    process_next,
+)
 from app.managers.research import OpenAIResearch
-from app.schemas.research import ResearchResult
+from app.schemas.research import (
+    KnowledgeUpdate,
+    ResearchFixture,
+    ResearchResult,
+)
 
 app = typer.Typer()
 POLL_SECONDS = 5
@@ -26,7 +34,8 @@ class FixtureResearch:
 
     def __init__(self, path: Path) -> None:
         """Validate the complete fixture, including nonempty source lists."""
-        self.result = ResearchResult.model_validate_json(path.read_text())
+        self.fixture = ResearchFixture.model_validate_json(path.read_text())
+        self.result = ResearchResult(observations=self.fixture.observations)
 
     async def __call__(
         self, objective: str, context: dict[str, Any]
@@ -35,12 +44,26 @@ class FixtureResearch:
         del objective, context
         return self.result
 
+    async def merge_knowledge(
+        self, objective: str, previous_knowledge: str, result: ResearchResult
+    ) -> KnowledgeUpdate:
+        """Use an explicit full snapshot instead of invoking a paid model."""
+        del objective, previous_knowledge, result
+        if self.fixture.knowledge_update is None:
+            message = "Fixture has no knowledge update"
+            raise ValueError(message)
+        return self.fixture.knowledge_update
 
-async def poll(researcher: Researcher, *, once: bool) -> None:
+
+async def poll(
+    researcher: Researcher, knowledge_merger: KnowledgeMerger, *, once: bool
+) -> None:
     """Check immediately, then sleep five seconds between queue checks."""
     while True:
         try:
-            run_id = await process_next(async_session, researcher)
+            run_id = await process_next(
+                async_session, researcher, knowledge_merger
+            )
         except SQLAlchemyError as exc:
             logger.error("Worker database failure ({})", type(exc).__name__)
             if once:
@@ -60,16 +83,21 @@ async def run_worker(fixture: Path | None, *, once: bool) -> None:
     try:
         if fixture is not None:
             rprint(
-                "Fixture mode: saves supplied test findings to the database."
+                "Fixture mode: saves test findings and replaces "
+                "monitor knowledge."
             )
-            await poll(FixtureResearch(fixture), once=once)
+            provider = FixtureResearch(fixture)
+            await poll(provider, provider.merge_knowledge, once=once)
         else:
             settings = get_settings()
             if not settings.openai_api_key.get_secret_value().strip():
                 message = "Set OPENAI_API_KEY before starting live research."
                 raise ValueError(message)
             async with httpx.AsyncClient() as client:
-                await poll(OpenAIResearch(client, settings), once=once)
+                live_provider = OpenAIResearch(client, settings)
+                await poll(
+                    live_provider, live_provider.merge_knowledge, once=once
+                )
     finally:
         await async_engine.dispose()
 
@@ -90,7 +118,7 @@ def worker(
         ),
     ] = None,
 ) -> None:
-    """Poll queued monitor runs every five seconds and save observations."""
+    """Poll queued runs every five seconds; save findings and knowledge."""
     try:
         asyncio.run(
             run_worker(

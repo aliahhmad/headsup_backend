@@ -9,5 +9,9 @@
         }
       ]
     }
-  ]
+  ],
+  "knowledge_update": {
+    "content": "Offline fixture: an example internship has opened. This is synthetic test data.",
+    "change_reason": "Saved the synthetic fixture finding."
+  }
 }
