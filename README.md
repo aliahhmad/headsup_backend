@@ -9,7 +9,7 @@ developments, and notify them only when something meaningful changes.
 This repository contains the FastAPI backend foundation. Authentication, user
 management, API keys, password recovery, administration, monitor management,
 and local development services are available. Monitor creation initializes its
-workspace and queues an initial check. An explicit worker researches queued checks
+workspace and queues an initial check. An administrator-controlled worker researches queued checks
 and saves observations with source evidence. Checks also update knowledge, evaluate alert decisions, and conditionally compose
 one sourced alert digest. Scheduled collection, AI conversations, configurable
 thresholds, and external notification delivery remain planned.
@@ -101,10 +101,12 @@ uv run --locked alembic upgrade head
 
 Configuration updates and deletion require `expected_version` to reject stale
 changes. `POST /monitors/{id}/checks` queues a manual check or returns an existing
-in-flight run; run history is available under `/monitors/{id}/runs`. Start
-`uv run --locked api-admin worker` separately to research queued checks and save
-observations with their supporting sources. It polls every five seconds; it does
-not enqueue periodic checks. Run detail includes the saved evidence. See the
+in-flight run; run history is available under `/monitors/{id}/runs`. Administrators
+can enable automatic processing or run one item at a time at **Administration →
+Queue** (`/admin/queue`). The API hosts the managed worker; automatic mode defaults
+to off and its saved setting survives restarts. The optional CLI worker shares
+the same controls. Processing does not enqueue periodic checks. See the
+[queue guide](docs/queue.md) for behavior, migration and endpoints, and the
 [worker guide](docs/monitor-worker.md) for configuration and an offline fixture
 dry run without API charges.
 

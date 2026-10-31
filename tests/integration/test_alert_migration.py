@@ -100,6 +100,25 @@ def migrate_and_backfill(connection) -> None:
         assert (
             connection.scalar(text("SELECT count(*) FROM run_model_calls")) == 1
         )
+        queue_migration = scripts.get_revision("add_queue_controls").module
+        queue_migration.upgrade()
+        assert (
+            connection.scalar(
+                text("SELECT automatic_enabled FROM queue_control")
+            )
+            is False
+        )
+        connection.execute(
+            text(
+                "INSERT INTO queue_executions (id, mode, status, monitor_run_id) VALUES (gen_random_uuid(), 'manual', 'pending', :run)"
+            ),
+            values,
+        )
+        assert (
+            connection.scalar(text("SELECT count(*) FROM queue_executions"))
+            == 1
+        )
+        queue_migration.downgrade()
         trace_migration.downgrade()
         assert (
             connection.scalar(text("SELECT title FROM alerts"))

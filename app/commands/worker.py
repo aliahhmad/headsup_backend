@@ -17,8 +17,8 @@ from app.managers.alert import AlertComposer
 from app.managers.monitor_worker import (
     KnowledgeMerger,
     Researcher,
-    process_next,
 )
+from app.managers.queue_control import dispatch_next
 from app.managers.research import OpenAIResearch
 from app.schemas.research import (
     AlertComposition,
@@ -86,12 +86,13 @@ async def poll(
     """Check immediately, then sleep five seconds between queue checks."""
     while True:
         try:
-            run_id = await process_next(
+            run_id = await dispatch_next(
                 async_session,
                 researcher,
                 knowledge_merger,
                 alert_composer,
                 resume_alerts=resume_alerts,
+                once=once,
             )
         except SQLAlchemyError as exc:
             logger.error("Worker database failure ({})", type(exc).__name__)
@@ -101,7 +102,9 @@ async def poll(
             if run_id is not None:
                 rprint(f"Processed run {run_id}; inspect its status/results.")
             elif once:
-                rprint("No executable queued run found.")
+                rprint(
+                    "No item processed: queue paused, busy, or no executable work."
+                )
         if once:
             return
         await asyncio.sleep(POLL_SECONDS)
@@ -156,7 +159,7 @@ def worker(
         ),
     ] = None,
 ) -> None:
-    """Poll queued runs every five seconds; save findings and knowledge."""
+    """Obey the shared automatic switch; --once explicitly processes one item."""
     try:
         asyncio.run(
             run_worker(

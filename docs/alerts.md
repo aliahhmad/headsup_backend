@@ -245,7 +245,9 @@ uv run --locked alembic upgrade head
 uv run --locked api-admin worker
 ```
 
-The worker remains explicitly started; API startup does not spend provider credits.
+Use **Administration → Queue** to enable automatic processing or run one item;
+the API hosts the managed service and the optional CLI obeys the same saved mode.
+Automatic mode defaults to off. See the [queue guide](queue.md).
 `--once` handles one due composition attempt, or one research run and its immediate
 composition if needed. Queue polling still happens every five seconds and does
 not enqueue recurring research.

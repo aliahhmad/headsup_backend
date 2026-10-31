@@ -1,6 +1,7 @@
 """Tests for the 'lifespan' function in the main module."""
 
 import logging
+from contextlib import asynccontextmanager
 
 import pytest
 from fastapi import FastAPI, status
@@ -10,6 +11,17 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.main import lifespan
+
+
+@pytest.fixture(autouse=True)
+def isolate_queue_service(mocker):
+    """Lifespan unit tests must not start a live queue/database background loop."""
+
+    @asynccontextmanager
+    async def offline_service(sessions):
+        yield
+
+    mocker.patch("app.main.queue_service", offline_service)
 
 
 @pytest.mark.asyncio

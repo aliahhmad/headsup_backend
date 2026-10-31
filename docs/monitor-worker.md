@@ -11,7 +11,9 @@ Research success and alert-processing state are separate. Composition retries do
 not repeat research or knowledge updates. Pending composition blocks new research
 claims for that monitor while other monitors can proceed. Monitor context and
 personal memory remain outside the update flow. External delivery and recurring
-schedule enqueueing are unimplemented. API startup does not start this worker.
+schedule enqueueing are unimplemented. The API now hosts a managed queue service,
+controlled through the [admin queue page](queue.md). Automatic mode starts off by
+default; existing saved settings survive restarts.
 
 See the [alert guide](alerts.md) for schemas, endpoints, the monitor Updates panel,
 recovery, and [future cost controls](alerts.md#observation-and-request-size-budgets).
@@ -27,6 +29,13 @@ the research/alert transaction boundaries or make additional model requests.
 
 ## Start the worker
 
+Administrators can use **Administration → Queue** (`/admin/queue`) to turn automatic
+processing on/off or request one item without starting a separate CLI worker.
+Apply migration `add_queue_controls` and restart all API/worker processes first.
+The optional continuous CLI loop obeys the same saved automatic switch and shared
+single-dispatcher lock. Turning automatic off finishes the current item before
+pausing. See the [queue guide](queue.md) for heartbeat, attempt history and recovery.
+
 Run from `api/`, using the same environment and database as the API:
 
 ```bash
@@ -37,7 +46,8 @@ uv run --locked api-admin worker
 Set `OPENAI_API_KEY` in `.env`. The existing `chat-gpt-api-key` spelling is also
 accepted; prefer the standard name for new setups. `OPENAI_MODEL` defaults to
 `gpt-5.4-mini` and must support web search and Structured Outputs. API startup
-does not start a worker or spend API credits.
+starts the managed service, but paid work only starts after explicit queue controls
+or a CLI one-shot operation. A saved enabled automatic mode resumes on restart.
 
 For one queue check that processes at most one run:
 

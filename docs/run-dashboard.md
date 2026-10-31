@@ -113,8 +113,8 @@ docker compose restart api
 
 Restart any separately running worker to enable traces for its future requests.
 Existing runs are not rerun. Navigate to `/admin/runs` while signed in as an admin.
-The worker still has to be explicitly started to process research/composition;
-opening the dashboard only observes work.
+Use the separate [queue administration page](queue.md) to enable automatic
+processing or request one item. Opening the run dashboard only observes work.
 
 Tests use mocked HTTP responses and the dedicated test database to verify admin
 authorization, credential exclusion, filters/counts, historical fidelity, exact
@@ -123,9 +123,9 @@ all-false composition skipping. Live research quality remains a separate concern
 
 ## Useful next additions
 
-1. **Worker heartbeat and claim ownership:** distinguish queue backlog from an
-   absent worker, and identify abandoned running research. This is not currently
-   recorded, so a long queue wait is not proof of a worker outage.
+1. **Claim ownership and stalled-run detection:** the queue page now records a
+   managed service heartbeat. Per-run ownership and recovery would help identify
+   abandoned research; a long queue wait alone is not proof of a worker outage.
 2. **Stage latency percentiles and alerts:** establish expected durations, then
    highlight regressions or repeated provider failures against measured thresholds.
 3. **Prompt/model versions and experiment comparisons:** store explicit versions

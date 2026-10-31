@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -301,10 +302,13 @@ async def process_next(
     alert_composer: AlertComposer | None = None,
     *,
     resume_alerts: bool = True,
+    on_claim: Callable[[UUID], Awaitable[None]] | None = None,
 ) -> UUID | None:
     """Execute at most one queued check; failed checks are not auto-retried."""
     if alert_composer is not None and resume_alerts:
-        alert_run_id = await process_next_alert(sessions, alert_composer)
+        alert_run_id = await process_next_alert(
+            sessions, alert_composer, on_claim=on_claim
+        )
         if alert_run_id is not None:
             return alert_run_id
     claimed = await claim_next(sessions)
@@ -312,6 +316,8 @@ async def process_next(
         return None
     logger.info("Researching monitor run {}", claimed.id)
     try:
+        if on_claim is not None:
+            await on_claim(claimed.id)
         async with trace_run(sessions, claimed.id, claimed.attempt):
             result, knowledge_update = await asyncio.wait_for(
                 research_and_merge(claimed, researcher, knowledge_merger),

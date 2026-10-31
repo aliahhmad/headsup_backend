@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Protocol
@@ -487,12 +488,15 @@ async def process_next_alert(
     composer: AlertComposer,
     *,
     run_id: UUID | None = None,
+    on_claim: Callable[[UUID], Awaitable[None]] | None = None,
 ) -> UUID | None:
     """Execute one due composition attempt with positive candidates."""
     claimed = await claim_alert(sessions, run_id=run_id)
     if claimed is None:
         return None
     try:
+        if on_claim is not None:
+            await on_claim(claimed.run_id)
         async with trace_run(sessions, claimed.run_id, claimed.attempt_number):
             result = await asyncio.wait_for(
                 composer(

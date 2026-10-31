@@ -48,7 +48,7 @@ def test_fixture_is_validated_before_polling(
 async def test_poll_waits_five_seconds(mocker: MockerFixture) -> None:
     """An empty queue waits five seconds instead of making a busy loop."""
     process = mocker.patch(
-        "app.commands.worker.process_next",
+        "app.commands.worker.dispatch_next",
         new_callable=mocker.AsyncMock,
         return_value=None,
     )
