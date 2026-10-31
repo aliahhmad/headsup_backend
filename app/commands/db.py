@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 from alembic import command
 from alembic.config import Config
-from faker import Faker
 from fastapi import HTTPException
 from rich import print as rprint
 from sqlalchemy.exc import SQLAlchemyError
@@ -22,6 +21,7 @@ from app.managers.user import ErrorMessages, UserManager
 from app.models.enums import RoleType
 
 if TYPE_CHECKING:  # pragma: no cover
+    from faker import Faker
     from sqlalchemy.ext.asyncio import AsyncSession
 
 app = typer.Typer(no_args_is_help=True, rich_markup_mode="rich")
@@ -262,7 +262,13 @@ async def _create_single_user(
 
 async def _populate_db(num_regular_users: int, num_admins: int) -> None:
     """Populate the database with random users."""
-    # Initialize Faker
+    try:
+        from faker import Faker
+    except ImportError:
+        rprint(
+            "[red]Sample data requires development dependencies; run it only in a development checkout."
+        )
+        raise typer.Exit(1) from None
     fake = Faker()
 
     try:

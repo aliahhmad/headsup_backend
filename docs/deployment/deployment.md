@@ -1,5 +1,11 @@
 # Deployment
 
+For HeadsUp on an existing Linux server with Docker and an HTTPS tunnel, use the
+[server deployment runbook](../../docker_support/deploy/server/README.md). It uses
+additive Alembic upgrades and separate volumes; the older template examples below
+are not the deployment script for this application.
+
+
 ## Production Environment Checklist
 
 Before deploying to production, ensure you've configured all critical settings properly. Missing or incorrect configuration can lead to security vulnerabilities or broken functionality.
@@ -26,7 +32,7 @@ Before deploying to production, ensure you've configured all critical settings p
 - **DB_USER**, **DB_PASSWORD**, **DB_NAME** - Must match your production database
 - **DB_ADDRESS**, **DB_PORT** - Point to your production database server
 - **Database must exist** - Create it before running migrations
-- **Run migrations** - `api-admin db init --force` (see [Database Migration Strategy](#database-migration-strategy) below)
+- **Run migrations** - `alembic upgrade head` (see [Database Migration Strategy](#database-migration-strategy) below)
 - Consider using connection pooling for better performance
 - Enable SSL/TLS for database connections if available
 
@@ -121,7 +127,7 @@ Proper database migration management is crucial for production deployments.
 
 2. **Run migrations** to create tables:
    ```bash
-   api-admin db init --force
+   alembic upgrade head
    ```
 
 3. **Create your first admin user**:

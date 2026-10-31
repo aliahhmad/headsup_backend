@@ -7,3 +7,9 @@ __pycache__
 .coverage*
 htmlcov
 logs
+
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+docker_support/deploy/server/backups

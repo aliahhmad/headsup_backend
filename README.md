@@ -15,6 +15,14 @@ one sourced alert digest. Scheduled collection, AI conversations, configurable
 thresholds, and push notification delivery remain planned. Opt-in alert emails
 use the existing SMTP setup.
 
+## Deploy to an existing server
+
+Use the [server deployment guide](docker_support/deploy/server/README.md) for an
+isolated Docker stack behind an existing HTTPS tunnel/proxy, with private
+PostgreSQL, loopback ingress, generated environment settings, updates and backups.
+The frontend stays on its current host and uses `VITE_API_URL` for this API.
+Existing applications and their tunnel routes can stay in place.
+
 ## HeadsUp local development
 
 Run the API with Python 3.13 and `uv`, with PostgreSQL and a local email inbox

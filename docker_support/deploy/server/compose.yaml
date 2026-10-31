@@ -1,0 +1,142 @@
+name: ${STACK_NAME:-headsup-demo}
+
+x-log-options: &log-options
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
+
+services:
+  db:
+    image: postgres:18.1-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-headsup}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in docker_support/deploy/server/.env}
+      POSTGRES_DB: ${DB_NAME:-headsup}
+    volumes:
+      - database:/var/lib/postgresql
+    networks: [data]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    logging: *log-options
+
+  api:
+    image: ${STACK_NAME:-headsup-demo}-api:server
+    build:
+      context: ../../..
+      dockerfile: Dockerfile.server
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:mode=1777,size=64m
+    volumes:
+      - logs:/app/logs
+    environment:
+      I_READ_THE_DAMN_DOCS: 'true'
+      API_ROOT: ''
+      NO_ROOT_ROUTE: 'true'
+      BASE_URL: ${API_URL:?Set the public HTTPS API_URL}
+      FRONTEND_URL: ${FRONTEND_URL:?Set the frontend HTTPS origin}
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set exact allowed browser origins}
+      DB_USER: ${DB_USER:-headsup}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-headsup}
+      DB_ADDRESS: db
+      DB_PORT: '5432'
+      TEST_DB_NAME: headsup_test_do_not_run_on_server
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4-mini}
+      OPENAI_ALERT_MODEL: ${OPENAI_ALERT_MODEL:-gpt-5.4-nano}
+      REFERRAL_CODE_ENABLED: ${REFERRAL_CODE_ENABLED:-true}
+      REFERRAL_CODE: ${REFERRAL_CODE:?Set REFERRAL_CODE for demo signup}
+      ADMIN_PAGES_ENABLED: 'false'
+      ADMIN_PAGES_ENCRYPTION_KEY: ${ADMIN_PAGES_ENCRYPTION_KEY:?Set a persistent encryption key}
+      CACHE_ENABLED: 'false'
+      REDIS_ENABLED: 'false'
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      METRICS_ENABLED: 'false'
+      LOG_PATH: /app/logs
+      LOG_CATEGORIES: ERRORS
+      LOG_CONSOLE_ENABLED: 'true'
+      LOG_RETENTION: 7 days
+      MAIL_SERVER: ${MAIL_SERVER:?Set MAIL_SERVER}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:?Set MAIL_FROM}
+      MAIL_FROM_NAME: HeadsUp
+      MAIL_STARTTLS: ${MAIL_STARTTLS:-true}
+      MAIL_SSL_TLS: ${MAIL_SSL_TLS:-false}
+      MAIL_USE_CREDENTIALS: ${MAIL_USE_CREDENTIALS:-true}
+      MAIL_VALIDATE_CERTS: ${MAIL_VALIDATE_CERTS:-true}
+    command:
+      - sh
+      - -c
+      - >-
+        alembic upgrade head &&
+        exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+        --proxy-headers --forwarded-allow-ips '*' --no-access-log
+        --timeout-graceful-shutdown 90
+    networks: [data, app, egress]
+    depends_on:
+      db:
+        condition: service_healthy
+    stop_grace_period: 120s
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/heartbeat', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 45s
+      retries: 12
+    logging: *log-options
+
+  gateway:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    init: true
+    user: '101:101'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    entrypoint: [nginx]
+    command: [-g, 'daemon off;']
+    tmpfs:
+      - /tmp:mode=1777,size=32m
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - '127.0.0.1:${ORIGIN_PORT:-8081}:8080'
+    networks:
+      app:
+      edge:
+        aliases: ["${STACK_NAME:-headsup-demo}-origin"]
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:8080/heartbeat']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging: *log-options
+
+networks:
+  data:
+    internal: true
+  app:
+    internal: true
+  egress:
+  edge:
+    name: ${STACK_NAME:-headsup-demo}-edge
+
+volumes:
+  database:
+  logs:

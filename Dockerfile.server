@@ -1,0 +1,26 @@
+# A built deployment image; local development continues to use Dockerfile.
+FROM python:3.13-slim-bookworm AS build
+COPY --from=ghcr.io/astral-sh/uv:0.12.5 /uv /bin/uv
+ENV UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never UV_COMPILE_BYTECODE=1
+WORKDIR /app
+RUN apt-get update && apt-get install --no-install-recommends -y git gcc libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY pyproject.toml uv.lock README.md LICENSE.txt ./
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev --no-install-project
+COPY app ./app
+COPY static ./static
+COPY alembic.ini ./
+COPY docker_support/deploy/server/check_settings.py docker_support/deploy/server/check_idle.py ./docker_support/deploy/server/
+# Editable package preserves the application's /app project-root lookup.
+# The code is baked into this image; there are no source mounts or auto-reload.
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev
+
+FROM python:3.13-slim-bookworm AS runtime
+RUN groupadd --gid 10001 headsup && useradd --uid 10001 --gid headsup --create-home headsup
+WORKDIR /app
+COPY --from=build --chown=headsup:headsup /app /app
+RUN mkdir -p /app/logs && chown headsup:headsup /app/logs
+ENV PATH="/app/.venv/bin:$PATH" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+USER headsup
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--proxy-headers", "--forwarded-allow-ips", "*", "--no-access-log"]

@@ -231,3 +231,8 @@ NOTES.md
 .agents/
 .codegraph/
 plans
+
+# Private server settings and database dumps
+docker_support/deploy/server/.env*
+!docker_support/deploy/server/.env.example
+docker_support/deploy/server/backups/
