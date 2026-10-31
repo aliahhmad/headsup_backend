@@ -30,9 +30,10 @@ application lives in the neighboring `web/` repository.
 
 The API starts the managed queue service. Automatic processing defaults to off in
 new databases; saved settings survive restarts. A separate CLI worker is optional.
-Recurring schedule enqueueing, conversational chat processing, push notifications,
-and configurable model context budgets remain unimplemented. A monitor's cadence
-setting does not yet schedule checks.
+The API also schedules due active monitors at their saved intervals. Checks queue
+even while automatic processing is off, with overlapping work coalesced. See
+[recurring scheduling](docs/scheduling.md). Conversational chat processing, push
+notifications, and configurable model context budgets remain unimplemented.
 
 ## Common local commands
 

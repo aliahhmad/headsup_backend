@@ -18,6 +18,7 @@ covers the current backend and its connected React application.
 | Area | Guide |
 | --- | --- |
 | Monitor ownership, lifecycle, and checks | [Monitors](monitors.md) |
+| Intervals, catch-up, and queued scheduled checks | [Recurring scheduling](scheduling.md) |
 | Research, evidence, and knowledge updates | [Research worker](monitor-worker.md) |
 | Decisions, deduplication, and final updates | [Alerts](alerts.md) |
 | Bell and inbox events | [In-app notifications](notifications.md) |
@@ -37,6 +38,7 @@ covers the current backend and its connected React application.
 - [Troubleshooting](troubleshooting.md)
 - [Deferred capabilities](future.md)
 
-Periodic schedule enqueueing and chat processing are not implemented. Automatic
-queue processing consumes work already queued by creation or Check now. It defaults
-to off in a new database and resumes the saved setting after restarts.
+Active monitors automatically queue checks at their intervals while the API is
+running. Automatic queue processing defaults to off in a new database and resumes
+its saved setting after restarts. Scheduling continues while processing is paused;
+checks wait in the queue. Chat processing is not implemented.

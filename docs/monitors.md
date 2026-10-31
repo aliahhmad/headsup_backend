@@ -7,8 +7,8 @@ polls queued checks every five seconds, calls OpenAI,
 and saves observations and source evidence. Runs with findings also merge current
 `monitor_knowledge` and save a run-linked revision when it changes. Monitor context
 and personal memory are not changed. Alert decisions and conditional digest
-composition are implemented; chat processing and periodic schedule enqueueing
-remain deferred. See the [alert guide](alerts.md) for the complete flow.
+composition and [recurring scheduling](scheduling.md) are implemented; chat
+processing remains deferred. See the [alert guide](alerts.md) for the complete flow.
 
 ## Setup and authorization
 
@@ -156,7 +156,7 @@ not the newly produced knowledge. No run-start or completion endpoint is publicl
 includes `observations`, each with its `sources`, plus separate `alert_processing`
 state and an optional published `alert`. Published digests and their evidence are
 available through the [alert endpoints](alerts.md#api-and-monitor-ui). External
-email/push delivery remains deferred.
+email delivery is available through [profile opt-in](alert-emails.md); push remains deferred.
 
 
 ## Lifecycle notifications

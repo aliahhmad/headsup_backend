@@ -1,6 +1,7 @@
 """Tests for the 'lifespan' function in the main module."""
 
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import pytest
@@ -14,15 +15,16 @@ from app.main import lifespan
 
 
 @pytest.fixture(autouse=True)
-def isolate_queue_service(mocker):
-    """Lifespan unit tests must not start a live queue/database background loop."""
+def isolate_queue_service(mocker) -> None:
+    """Keep lifespan unit tests isolated from database background services."""
 
     @asynccontextmanager
-    async def offline_service(sessions):
+    async def offline_service(sessions) -> AsyncIterator[None]:
         yield
 
     mocker.patch("app.main.queue_service", offline_service)
     mocker.patch("app.main.alert_email_service", offline_service)
+    mocker.patch("app.main.monitor_scheduler_service", offline_service)
 
 
 @pytest.mark.asyncio

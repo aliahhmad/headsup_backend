@@ -1,8 +1,9 @@
 # Administrator queue management
 
 Open **Administration → Queue** (`/admin/queue`) as an administrator. This page
-controls existing queued work across all accounts. It does not enqueue recurring
-checks or change monitor schedules. Opening or refreshing it makes no model calls.
+controls queued work across all accounts. The API's separate [scheduler](scheduling.md)
+enqueues due active monitors even while automatic processing is off. Queue controls
+do not change monitor schedules. Opening or refreshing the page makes no model calls.
 
 ## Controls and behavior
 

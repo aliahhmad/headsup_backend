@@ -4,7 +4,7 @@ Updated: October 31, 2026.
 
 Alert decisions, durable composition, sourced digests, authenticated APIs, and a
 monitor Updates panel are implemented. Optional [alert email updates](alert-emails.md)
-are delivered through a durable outbox. Push delivery and periodic scheduling remain deferred. The observation/source/summary limits from the existing research
+are delivered through a durable outbox. Active monitors use [recurring scheduling](scheduling.md); push delivery remains deferred. The observation/source/summary limits from the existing research
 pipeline are unchanged; the proposed cost restrictions have not been applied.
 
 See the [project structure](project-organization.md#domain-records) and

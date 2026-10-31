@@ -284,7 +284,8 @@ own backup and compatibility plan.
 - Email links use the wrong host: correct `API_URL`/`FRONTEND_URL`, recreate, and
   generate a new email. Review the alert-email feature guide for delivery statuses.
 - Research stays queued: configure the server-side OpenAI key and explicitly
-  enable the managed queue. Periodic monitor enqueueing is still not implemented.
+  enable the managed queue. The API schedules due active monitors independently;
+  checks wait while automatic processing is off. Pause a monitor to stop its schedule.
 - Image CLI fails only on sample seeding: sample data uses development-only Faker;
   use a local development checkout for that optional operation.
 

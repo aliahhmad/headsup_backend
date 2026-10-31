@@ -57,8 +57,10 @@ Inside Docker, local Mailpit is `mailpit:1025`, not `127.0.0.1:1025`.
 Monitor creation and Check now enqueue work; processing is administrator-controlled.
 Check **Administration → Queue**, worker liveness, configured model key, and
 pending composition for the monitor. Automatic mode defaults to off. Use a single
-step or `api-admin worker --once` for explicit processing. Cadence does not yet
-schedule recurring checks. See [queue behavior](queue.md).
+step or `api-admin worker --once` for explicit processing. Scheduled checks require
+the updated API to be running and an active, undeleted monitor owned by a verified,
+non-banned account. Existing queued/running work is coalesced instead of duplicated.
+See [scheduling](scheduling.md) and [queue behavior](queue.md).
 
 ## Research succeeded but no alert appeared
 

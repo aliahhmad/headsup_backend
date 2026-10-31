@@ -45,7 +45,8 @@ monitor scope. `notification_preferences` stores email opt-in, and
 and constraints rather than inferring behavior from table names.
 
 Chat/message and personal-memory structures exist, but conversational processing
-is deferred. Persisted monitor cadence is not yet a recurring scheduler.
+is deferred. The API-hosted scheduler queues due active monitors using persisted
+intervals and due times. It runs separately from paid-work processing controls.
 
 ## Frontend
 

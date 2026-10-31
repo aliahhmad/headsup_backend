@@ -49,6 +49,7 @@ nav:
   - Accounts and access: accounts.md
   - Monitoring:
       - Monitors: monitors.md
+      - Recurring scheduling: scheduling.md
       - Research worker: monitor-worker.md
       - Alerts and updates: alerts.md
       - In-app notifications: notifications.md

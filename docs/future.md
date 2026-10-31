@@ -2,8 +2,6 @@
 
 These capabilities are not currently implemented:
 
-- Recurring schedule enqueueing: cadence is saved, but only monitor creation and
-  explicit Check now requests currently create research work.
 - Conversational chat processing, chat summarization, and model-driven updates to
   monitor context or personal memory.
 - Push delivery, digests across runs, notification batching, quiet hours, and
@@ -13,7 +11,8 @@ These capabilities are not currently implemented:
 - Automatic recovery/retry of research runs left running after a hard process kill.
 - Exact monetary cost reporting and complete fetched-page archival.
 
-Current features include monitor ownership/lifecycle, sourced research, knowledge
+Current features include monitor ownership/lifecycle, recurring interval scheduling,
+sourced research, knowledge
 revisions, decisions and conditional alert composition, expandable update history,
 in-app notifications, opt-in alert email, queue administration, and run inspection.
 

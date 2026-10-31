@@ -1,7 +1,7 @@
 """Transactional monitor lifecycle and durable check-request management."""
 
 from collections.abc import Sequence
-from datetime import timedelta
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -12,11 +12,6 @@ from app.managers.notification import (
     publish_notification,
     remove_monitor_notifications,
 )
-from app.schemas.notification import (
-    MonitorActivatedEvent,
-    MonitorActivatedPayload,
-    MonitorPausedEvent,
-)
 from app.models.monitor import (
     Chat,
     Memory,
@@ -24,6 +19,12 @@ from app.models.monitor import (
     Monitor,
     MonitorRun,
     utc_now,
+)
+from app.models.user import User
+from app.schemas.notification import (
+    MonitorActivatedEvent,
+    MonitorActivatedPayload,
+    MonitorPausedEvent,
 )
 from app.schemas.request.monitor import (
     MonitorCreate,
@@ -95,7 +96,12 @@ async def _memories(
 
 
 async def _enqueue(
-    monitor: Monitor, session: AsyncSession, *, trigger: str, key: str
+    monitor: Monitor,
+    session: AsyncSession,
+    *,
+    trigger: str,
+    key: str,
+    scheduled_for: datetime | None = None,
 ) -> MonitorRun:
     """Save one check request while the caller holds the monitor row lock."""
     existing = await session.scalar(
@@ -111,7 +117,9 @@ async def _enqueue(
         monitor_id=monitor.id,
         trigger=trigger,
         idempotency_key=key,
-        scheduled_for=utc_now() if trigger == "scheduled" else None,
+        scheduled_for=(scheduled_for or utc_now())
+        if trigger == "scheduled"
+        else None,
         monitor_version=monitor.version,
         objective_snapshot=monitor.objective,
         context_snapshot={
@@ -177,6 +185,58 @@ async def create_monitor(
         ),
     )
     return monitor
+
+
+async def queue_due_monitors(
+    session: AsyncSession, *, now: datetime | None = None, limit: int = 100
+) -> int:
+    """Queue/coalesce due checks and advance timers in the caller's transaction.
+
+    Lock parents before inspecting runs, just like manual requests and workers.
+    Concurrent schedulers skip locked monitors. A missed interval produces one
+    current check, rather than replaying every missed slot. Scheduling does not
+    change configuration versions or invalidate work already executing.
+
+    Return the number of due monitors handled, including coalesced checks.
+    """
+    now = now or utc_now()
+    monitors = await session.scalars(
+        select(Monitor)
+        .where(
+            Monitor.status == "active",
+            Monitor.deleted_at.is_(None),
+            Monitor.next_run_at <= now,
+            select(User.id)
+            .where(
+                User.id == Monitor.user_id,
+                User.verified.is_(True),
+                User.banned.is_(False),
+            )
+            .exists(),
+        )
+        .order_by(Monitor.next_run_at, Monitor.id)
+        .limit(limit)
+        .with_for_update(of=Monitor, skip_locked=True)
+        .execution_options(populate_existing=True)
+    )
+    handled = 0
+    for monitor in monitors:
+        due = monitor.next_run_at
+        # The query excludes null due times; retain that invariant for typing.
+        assert due is not None  # noqa: S101
+        await _enqueue(
+            monitor,
+            session,
+            trigger="scheduled",
+            key=f"schedule:{due.isoformat()}",
+            scheduled_for=due,
+        )
+        monitor.next_run_at = now + timedelta(
+            seconds=monitor.check_interval_seconds
+        )
+        handled += 1
+    await session.flush()
+    return handled
 
 
 async def monitor_detail(

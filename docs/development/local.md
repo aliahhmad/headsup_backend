@@ -21,7 +21,7 @@ uv run --locked uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload --rel
 ```
 
 Restart after changing environment settings. The API hosts both the managed
-research queue service and the independent alert-email delivery loop. You do not
+recurring scheduler, research queue service, and independent alert-email delivery loop. You do not
 need an additional worker process for administrator queue controls.
 
 ## Run the API in Docker

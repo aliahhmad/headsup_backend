@@ -11,8 +11,9 @@ Research success and alert-processing state are separate. Composition retries do
 not repeat research or knowledge updates. Pending composition blocks new research
 claims for that monitor while other monitors can proceed. Monitor context and
 personal memory remain outside the update flow. Optional [alert emails](alert-emails.md)
-use an independent delivery loop; push and recurring schedule enqueueing remain
-unimplemented. The API now hosts a managed queue service,
+use an independent delivery loop; push remains unimplemented. The API also
+[schedules due monitor checks](scheduling.md) independently of research processing.
+The API hosts a managed queue service,
 controlled through the [admin queue page](queue.md). Automatic mode starts off by
 default; existing saved settings survive restarts.
 
