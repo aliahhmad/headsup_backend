@@ -357,3 +357,14 @@ and [handling incomplete reasoning responses](https://developers.openai.com/api/
 docker compose exec db psql -U headsup -d headsup -c '\d alerts'
 docker compose exec db psql -U headsup -d headsup -c 'SELECT id, title, created_at FROM alerts ORDER BY created_at DESC LIMIT 20;'
 ```
+
+
+## In-app notification publication
+
+Final alert publication now creates an `alert.published` inbox notification in the
+same transaction as the alert/evidence links. Candidates, negative decisions and
+composition retries do not create separate notices. Alert and notification read
+state synchronize in both directions. Opening a notification selects that exact
+update and its existing source dialog. No additional model call or external
+email/push delivery is involved. See [notifications](notifications.md) for typed
+payloads, inbox routes, deletion scope and migration `add_notifications`.

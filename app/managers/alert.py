@@ -12,6 +12,8 @@ from uuid import UUID, uuid4
 from sqlalchemy import and_, or_, select
 
 from app.logs import logger
+from app.managers.notification import publish_notification
+from app.schemas.notification import AlertPublishedEvent, AlertPublishedPayload
 from app.managers.monitor_state import can_execute, memory_snapshot
 from app.managers.research import ResearchError
 from app.managers.run_trace import trace_run
@@ -450,6 +452,13 @@ async def save_composition(
                     )
                 )
         await session.flush()
+        await publish_notification(
+            session,
+            monitor,
+            AlertPublishedEvent(
+                payload=AlertPublishedPayload(alert_id=alert.id)
+            ),
+        )
         finish_job(job, "published", "digest_published")
         job.input_snapshot = {
             **job.input_snapshot,

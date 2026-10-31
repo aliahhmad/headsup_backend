@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.db import get_database
 from app.managers import monitor as manager
+from app.managers.notification import sync_alert_read
 from app.managers.security import get_current_user
 from app.models.monitor import (
     Alert,
@@ -332,5 +333,7 @@ async def update_alert_state(
             else None
         )
         setattr(alert, column, value)
+    if "read" in data.model_fields_set:
+        await sync_alert_read(db, user_id=user.id, alert=alert)
     await db.flush()
     return AlertResponse.model_validate(alert)

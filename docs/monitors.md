@@ -156,3 +156,12 @@ includes `observations`, each with its `sources`, plus separate `alert_processin
 state and an optional published `alert`. Published digests and their evidence are
 available through the [alert endpoints](alerts.md#api-and-monitor-ui). External
 email/push delivery remains deferred.
+
+
+## Lifecycle notifications
+
+Active creation and genuine transitions to active or paused create typed in-app
+notifications atomically with the monitor change. Repeated status saves, ordinary
+configuration edits and archiving do not notify. Monitor detail exposes Pause and
+Activate actions using `expected_version`; stale changes must reload before retry.
+Deletion removes associated inbox entries. See the [notification guide](notifications.md).

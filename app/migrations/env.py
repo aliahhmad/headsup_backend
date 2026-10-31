@@ -9,7 +9,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.database.db import Base, get_database_url
-from app.models import api_key, monitor, queue, registration, user
+from app.models import api_key, monitor, notification, queue, registration, user
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

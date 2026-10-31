@@ -8,6 +8,15 @@ from fastapi import HTTPException, status
 from sqlalchemy import Select, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.managers.notification import (
+    publish_notification,
+    remove_monitor_notifications,
+)
+from app.schemas.notification import (
+    MonitorActivatedEvent,
+    MonitorActivatedPayload,
+    MonitorPausedEvent,
+)
 from app.models.monitor import (
     Chat,
     Memory,
@@ -156,6 +165,17 @@ async def create_monitor(
         )
     await session.flush()
     await _enqueue(monitor, session, trigger="initial", key="initial")
+    await publish_notification(
+        session,
+        monitor,
+        MonitorActivatedEvent(
+            payload=MonitorActivatedPayload(
+                monitor_id=monitor.id,
+                monitor_version=monitor.version,
+                previous_status="new",
+            )
+        ),
+    )
     return monitor
 
 
@@ -234,6 +254,29 @@ async def update_monitor(
             key=f"resume:{monitor.version}",
         )
     await session.flush()
+    if monitor.status != previous_status:
+        if monitor.status == "active":
+            event = MonitorActivatedEvent.model_validate(
+                {
+                    "payload": {
+                        "monitor_id": monitor.id,
+                        "monitor_version": monitor.version,
+                        "previous_status": previous_status,
+                    }
+                }
+            )
+            await publish_notification(session, monitor, event)
+        elif monitor.status == "paused":
+            pause_event = MonitorPausedEvent.model_validate(
+                {
+                    "payload": {
+                        "monitor_id": monitor.id,
+                        "monitor_version": monitor.version,
+                        "previous_status": previous_status,
+                    }
+                }
+            )
+            await publish_notification(session, monitor, pause_event)
     return monitor
 
 
@@ -247,6 +290,7 @@ async def delete_monitor(
     monitor.next_run_at = None
     monitor.version += 1
     await _cancel_queued(monitor.id, session)
+    await remove_monitor_notifications(session, monitor.id)
     await session.flush()
 
 

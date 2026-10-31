@@ -135,6 +135,19 @@ after applying it. Older runs retain snapshots/outputs but have no reconstructed
 request log. See the [run dashboard guide](docs/run-dashboard.md) for scope,
 admin-only endpoints, verification limits and suggested next additions.
 
+## In-app notifications
+
+The topbar bell and **Notifications** (`/notifications`) collect `alert.published`,
+`monitor.activated`, and `monitor.paused` events for the signed-in account. Active
+creation counts as activation; repeated status saves and ordinary edits do not
+notify. Typed JSON payloads carry event-specific IDs without a fixed alert column.
+Events commit atomically with publication/lifecycle changes and deduplicate retries.
+Read history remains available, and alert read state synchronizes with its notice.
+Monitor pages include version-protected Pause/Activate controls. Apply migration
+`add_notifications` and restart the API and any separate workers. Existing events
+are not backfilled. See the [notification guide](docs/notifications.md) for schema,
+API, ownership, deletion semantics and tests. Email/push remain future work.
+
 ## Referral-only demo signup
 
 To restrict public signup to invited demo users, configure the backend:

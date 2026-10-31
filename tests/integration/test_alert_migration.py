@@ -3,6 +3,7 @@
 # SQL fixtures keep column lists readable.
 # ruff: noqa: E501, PLR2004
 
+import json
 from uuid import uuid4
 
 import pytest
@@ -117,6 +118,61 @@ def migrate_and_backfill(connection) -> None:
         assert (
             connection.scalar(text("SELECT count(*) FROM queue_executions"))
             == 1
+        )
+        notifications = scripts.get_revision("add_notifications").module
+        notifications.upgrade()
+        # Existing monitors/alerts must not generate a burst of historical notices.
+        assert (
+            connection.scalar(text("SELECT count(*) FROM notifications")) == 0
+        )
+        for kind, payload in (
+            ("alert.published", {"alert_id": str(alert)}),
+            (
+                "monitor.activated",
+                {
+                    "monitor_id": str(monitor),
+                    "monitor_version": 1,
+                    "previous_status": "new",
+                },
+            ),
+            (
+                "monitor.paused",
+                {
+                    "monitor_id": str(monitor),
+                    "monitor_version": 2,
+                    "previous_status": "active",
+                },
+            ),
+        ):
+            connection.execute(
+                text(
+                    "INSERT INTO notifications (id, user_id, scope_monitor_id, type, payload, deduplication_key) VALUES (gen_random_uuid(), 1, :monitor, :kind, CAST(:payload AS jsonb), :dedupe)"
+                ),
+                {
+                    "monitor": monitor,
+                    "kind": kind,
+                    "dedupe": kind,
+                    "payload": json.dumps(payload),
+                },
+            )
+        assert (
+            connection.scalar(text("SELECT count(*) FROM notifications")) == 3
+        )
+        savepoint = connection.begin_nested()
+        try:
+            connection.execute(
+                text("DELETE FROM monitors WHERE id = :monitor"), values
+            )
+            assert (
+                connection.scalar(text("SELECT count(*) FROM notifications"))
+                == 0
+            )
+        finally:
+            savepoint.rollback()
+        notifications.downgrade()
+        assert (
+            connection.scalar(text("SELECT title FROM alerts"))
+            == "Original title"
         )
         queue_migration.downgrade()
         trace_migration.downgrade()
