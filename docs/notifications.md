@@ -2,7 +2,8 @@
 
 The inbox at `/notifications` and the topbar bell show account-owned activity.
 Three exact event types are implemented. Notifications are plain text, retained
-when read, and presented without automatic dialogs, sounds, email or push.
+when read, and presented without automatic dialogs or sounds. Alert email
+delivery is a separate opt-in; push is not implemented.
 
 ## Events
 
@@ -148,4 +149,7 @@ Tests cover exact payload validation, account isolation, initialization and genu
 status transitions, no-op/stale edits, transactional rollback, deduplication, quiet
 research, retry publication, read synchronization, seen semantics, pagination and
 filters, deletion/privacy scope, and migration upgrade/downgrade. Provider calls
-are mocked. Email, push, preferences and delivery batching remain future work.
+are mocked. Optional [alert emails](alert-emails.md) now use account preferences
+and a durable delivery outbox. Push and delivery batching remain future work.
+
+See [alert email updates](alert-emails.md) for the profile switch, SMTP configuration, template preview and delivery recovery semantics.

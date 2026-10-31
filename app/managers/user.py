@@ -314,6 +314,13 @@ class UserManager:
                 ErrorMessages.PASSWORD_INVALID,
             ) from exc
 
+        if user_data.email != user.email:
+            # A changed address needs a fresh explicit opt-in. Pending mail must
+            # not silently follow the account to another recipient.
+            from app.managers.notification_preferences import save_preferences
+
+            await save_preferences(session, user_id, enabled=False)
+
         await session.execute(
             update(User)
             .where(User.id == user_id)

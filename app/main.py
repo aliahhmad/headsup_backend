@@ -26,6 +26,7 @@ from app.config.log_config import get_log_config
 from app.config.openapi import custom_openapi
 from app.config.settings import check_secrets_dir, get_settings, unwrap_secret
 from app.database.db import async_session
+from app.managers.alert_email import alert_email_service
 from app.managers.queue_control import queue_service
 from app.metrics.instrumentator import register_metrics
 from app.middleware.cache_logging import CacheLoggingMiddleware
@@ -142,7 +143,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, None]:
     else:
         logger.info("Caching is disabled (CACHE_ENABLED=false).")
 
-    async with queue_service(async_session):
+    async with queue_service(async_session), alert_email_service(async_session):
         yield
 
     # Ensure loguru queue is drained before shutdown to avoid warnings.

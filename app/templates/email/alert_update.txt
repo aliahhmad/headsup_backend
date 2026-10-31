@@ -1,0 +1,30 @@
+{% autoescape false %}HEADSUP · YOUR MONITOR UPDATE
+
+{{ alert_title }}
+{{ published_at }} · {{ sources|length }} source{% if sources|length != 1 %}s{% endif %}
+
+Hi{% if name %} {{ name }}{% else %} there{% endif %},
+
+{{ alert_body }}
+
+ABOUT THIS MONITOR
+{{ monitor_name }}
+{{ monitor_objective }}
+{% if sources %}
+SOURCES BEHIND THIS UPDATE
+{% for source in sources %}- {{ source.title }}
+  {{ source.url }}
+{% endfor %}{% endif %}
+Read update & sources:
+{{ action_url }}
+
+Your full update and its evidence stay in HeadsUp.
+Opening this email doesn't mark the update as read.
+
+You enabled email updates for new alerts.
+Turn them on or off in My profile:
+{{ settings_url }}
+
+The HeadsUp team
+Less checking. More living.
+{% endautoescape %}

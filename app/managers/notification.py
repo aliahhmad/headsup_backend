@@ -10,6 +10,7 @@ from fastapi_pagination import Page, Params
 from sqlalchemy import Select, Text, and_, delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 
+from app.managers.alert_email import enqueue_alert_email
 from app.models.monitor import Alert, Monitor, utc_now
 from app.models.notification import Notification
 from app.schemas.notification import (
@@ -96,14 +97,21 @@ async def publish_notification(
         payload=event.payload.model_dump(mode="json"),
         deduplication_key=key,
     )
-    await session.execute(
+    result = await session.execute(
         statement.on_conflict_do_nothing(
             index_elements=[
                 Notification.user_id,
                 Notification.deduplication_key,
             ]
-        )
+        ).returning(Notification.id)
     )
+    notification_id = result.scalar_one_or_none()
+    if (
+        notification_id is not None
+        and isinstance(event, AlertPublishedEvent)
+        and alert is not None
+    ):
+        await enqueue_alert_email(session, monitor, alert, notification_id)
 
 
 def display_notification(

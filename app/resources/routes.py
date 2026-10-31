@@ -10,6 +10,7 @@ from app.resources import (
     home,
     monitor,
     notification,
+    notification_preferences,
     queue,
     registration,
     run_dashboard,
@@ -25,6 +26,7 @@ api_router.include_router(heartbeat.router)
 api_router.include_router(registration.router)
 api_router.include_router(monitor.router)
 api_router.include_router(notification.router)
+api_router.include_router(notification_preferences.router)
 api_router.include_router(run_dashboard.router)
 api_router.include_router(queue.router)
 

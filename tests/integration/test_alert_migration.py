@@ -158,6 +158,44 @@ def migrate_and_backfill(connection) -> None:
         assert (
             connection.scalar(text("SELECT count(*) FROM notifications")) == 3
         )
+        email_migration = scripts.get_revision(
+            "add_alert_email_delivery"
+        ).module
+        email_migration.upgrade()
+        assert (
+            connection.scalar(
+                text("SELECT count(*) FROM notification_preferences")
+            )
+            == 0
+        )
+        assert (
+            connection.scalar(
+                text("SELECT count(*) FROM notification_deliveries")
+            )
+            == 0
+        )
+        connection.execute(
+            text("INSERT INTO notification_preferences (user_id) VALUES (1)")
+        )
+        assert (
+            connection.scalar(
+                text(
+                    "SELECT email_alerts_enabled FROM notification_preferences"
+                )
+            )
+            is False
+        )
+        connection.execute(
+            text(
+                "INSERT INTO notification_deliveries (id, notification_id, channel, status, monitor_snapshot, attempt_count) SELECT gen_random_uuid(), id, 'email', 'pending', '{}', 0 FROM notifications WHERE type = 'alert.published'"
+            )
+        )
+        assert (
+            connection.scalar(
+                text("SELECT count(*) FROM notification_deliveries")
+            )
+            == 1
+        )
         savepoint = connection.begin_nested()
         try:
             connection.execute(
@@ -167,8 +205,15 @@ def migrate_and_backfill(connection) -> None:
                 connection.scalar(text("SELECT count(*) FROM notifications"))
                 == 0
             )
+            assert (
+                connection.scalar(
+                    text("SELECT count(*) FROM notification_deliveries")
+                )
+                == 0
+            )
         finally:
             savepoint.rollback()
+        email_migration.downgrade()
         notifications.downgrade()
         assert (
             connection.scalar(text("SELECT title FROM alerts"))

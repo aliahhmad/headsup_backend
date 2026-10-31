@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% set action_label = 'Read update & sources' %}
+{% block title %}{{ alert_title }}{% endblock %}
+{% block preheader %}{{ monitor_name }} · {{ preview }}{% endblock %}
+{% block eyebrow %}YOUR MONITOR UPDATE{% endblock %}
+{% block headline %}<span style="overflow-wrap: anywhere; word-break: break-word;">{{ alert_title }}</span>{% endblock %}
+{% block introduction %}A new development from <strong style="color: #f8fafc;">{{ monitor_name }}</strong>.{% endblock %}
+{% block content %}
+  <p style="margin: 0 0 22px; font-size: 11px; line-height: 19px; color: #64748b;">{{ published_at }} &nbsp;&middot;&nbsp; {{ sources|length }} source{% if sources|length != 1 %}s{% endif %}</p>
+  {% for paragraph in alert_paragraphs %}
+  <p style="margin: 0 0 18px; font-size: 15px; line-height: 26px; color: #0f172a; overflow-wrap: anywhere;">{% for line in paragraph.split('\n') %}{{ line }}{% if not loop.last %}<br>{% endif %}{% endfor %}</p>
+  {% endfor %}
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width: 100%; margin: 26px 0;">
+    <tr><td bgcolor="#f0fdfa" style="padding: 20px; border: 1px solid #99f6e4; border-radius: 9px; background-color: #f0fdfa;">
+      <p style="margin: 0 0 9px; font-size: 10px; line-height: 16px; font-weight: 700; letter-spacing: 1.5px; color: #0f766e;">ABOUT THIS MONITOR</p>
+      <p style="margin: 0 0 9px; font-size: 16px; line-height: 24px; font-weight: 700; color: #0f172a; overflow-wrap: anywhere;">{{ monitor_name }}</p>
+      <p style="margin: 0; font-size: 13px; line-height: 23px; color: #475569; overflow-wrap: anywhere;">{{ monitor_objective }}</p>
+    </td></tr>
+  </table>
+  {% if sources %}
+  <h2 style="margin: 0 0 12px; font-size: 13px; line-height: 21px; font-weight: 700; color: #0f172a;">Sources behind this update</h2>
+  <ul style="margin: 0; padding-left: 20px; color: #64748b;">
+    {% for source in sources %}
+    <li style="padding: 0 0 9px; font-size: 12px; line-height: 21px; overflow-wrap: anywhere;"><a href="{{ source.url }}" style="color: #4361ee; text-decoration: underline;">{{ source.title }}</a></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+{% endblock %}
+{% block note %}
+  <p style="margin: 0; font-size: 12px; line-height: 21px; color: #64748b;">Your full update and its evidence stay in HeadsUp. Opening this email doesn’t mark the update as read.</p>
+{% endblock %}
+{% block footer_reason %}You enabled email updates for new alerts. <a href="{{ settings_url }}" style="color: #64748b; text-decoration: underline;">Manage email updates in My profile</a>.{% endblock %}

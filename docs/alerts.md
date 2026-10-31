@@ -1,10 +1,10 @@
 # Alerts: implementation and behavior
 
-Updated: October 30, 2026.
+Updated: October 31, 2026.
 
 Alert decisions, durable composition, sourced digests, authenticated APIs, and a
-monitor Updates panel are implemented. Email/push delivery and periodic scheduling
-remain deferred. The observation/source/summary limits from the existing research
+monitor Updates panel are implemented. Optional [alert email updates](alert-emails.md)
+are delivered through a durable outbox. Push delivery and periodic scheduling remain deferred. The observation/source/summary limits from the existing research
 pipeline are unchanged; the proposed cost restrictions have not been applied.
 
 See the [overall design and schema](../../docs/HeadsUp_Design_Decisions_and_Schema.md#510-alert)
@@ -282,8 +282,9 @@ combined call. Compare usage, latency, missed important updates, unnecessary
 alerts, factual accuracy, deduplication, and source attribution on the same cases.
 No new observation, history, or output-token restrictions were added for this feature.
 
-Email/push requires a future durable delivery outbox with attempts/provider IDs
-and idempotency. Sending, reading, and dismissing remain different events.
+Email uses a durable delivery outbox with attempts, stable Message-IDs and
+account opt-in; push remains deferred. Sending, reading, and dismissing remain
+different events. See [alert emails](alert-emails.md).
 Automatic scheduling, reminders/carryover of excluded candidates, stronger semantic
 identity matching, selective historical retrieval, per-attempt model/prompt audits,
 and configurable notification thresholds remain future work.
@@ -365,6 +366,7 @@ Final alert publication now creates an `alert.published` inbox notification in t
 same transaction as the alert/evidence links. Candidates, negative decisions and
 composition retries do not create separate notices. Alert and notification read
 state synchronize in both directions. Opening a notification selects that exact
-update and its existing source dialog. No additional model call or external
-email/push delivery is involved. See [notifications](notifications.md) for typed
+update and its existing source dialog. No additional model call is involved. Optional alert emails are now delivered
+through a separate durable outbox when the account has opted in; push remains
+unimplemented. See [email updates](alert-emails.md). See [notifications](notifications.md) for typed
 payloads, inbox routes, deletion scope and migration `add_notifications`.

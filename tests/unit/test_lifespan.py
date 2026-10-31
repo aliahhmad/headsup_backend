@@ -22,6 +22,7 @@ def isolate_queue_service(mocker):
         yield
 
     mocker.patch("app.main.queue_service", offline_service)
+    mocker.patch("app.main.alert_email_service", offline_service)
 
 
 @pytest.mark.asyncio

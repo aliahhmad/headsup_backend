@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+import asyncio
+from contextlib import suppress
+
+from datetime import datetime, timezone
 from email.message import EmailMessage
 from email.policy import SMTP
 from email.utils import formataddr, formatdate, make_msgid
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from aiosmtplib.errors import SMTPRecipientsRefused, SMTPResponseException
 from fastapi import BackgroundTasks  # noqa: TC002
 from fastapi.responses import JSONResponse
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
@@ -20,6 +24,18 @@ from app.logs import LogCategory, category_logger
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.schemas.email import EmailSchema, EmailTemplateSchema
+
+
+class AlertEmailTransportError(Exception):
+    """A safe SMTP outcome; uncertainty must never trigger automatic replay."""
+
+    def __init__(
+        self, code: str, *, retryable: bool = False, uncertain: bool = False
+    ) -> None:
+        super().__init__(code)
+        self.code = code
+        self.retryable = retryable
+        self.uncertain = uncertain
 
 
 class EmailManager:
@@ -117,7 +133,7 @@ class EmailManager:
             "application": settings.api_title,
             "base_url": settings.base_url,
             "frontend_url": settings.frontend_url or settings.base_url,
-            "year": datetime.now(UTC).year,
+            "year": datetime.now(timezone.utc).year,
             **email_data.body,
         }
         plain_template = str(Path(email_data.template_name).with_suffix(".txt"))
@@ -158,3 +174,52 @@ class EmailManager:
             if not self.conf.SUPPRESS_SEND:
                 await connection.session.send_message(message)
         email_dispatched.send(message)
+
+    async def send_alert_message(self, message: EmailMessage) -> None:
+        """Send one recipient and distinguish explicit refusal from lost confirmation."""
+        if self.conf.SUPPRESS_SEND:
+            return
+        connection = Connection(self.conf)
+        try:
+            await asyncio.wait_for(connection.__aenter__(), timeout=30)
+        except asyncio.CancelledError:
+            if hasattr(connection, "session"):
+                connection.session.close()
+            raise
+        except Exception:
+            if hasattr(connection, "session"):
+                connection.session.close()
+            # No SMTP DATA was attempted; retrying cannot duplicate this email.
+            raise AlertEmailTransportError(
+                "smtp_connection_failed", retryable=True
+            ) from None
+        try:
+            try:
+                await asyncio.wait_for(
+                    connection.session.send_message(message), timeout=30
+                )
+            except SMTPRecipientsRefused as exc:
+                retryable = bool(exc.recipients) and all(
+                    400 <= refusal.code < 500 for refusal in exc.recipients
+                )
+                raise AlertEmailTransportError(
+                    "smtp_recipient_refused", retryable=retryable
+                ) from None
+            except SMTPResponseException as exc:
+                raise AlertEmailTransportError(
+                    "smtp_message_refused", retryable=400 <= exc.code < 500
+                ) from None
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # SMTP could have accepted DATA before the connection was lost.
+                raise AlertEmailTransportError(
+                    "smtp_confirmation_lost", uncertain=True
+                ) from None
+        finally:
+            # A failed QUIT after acceptance must not turn success into a retry.
+            with suppress(Exception):
+                await asyncio.wait_for(
+                    connection.__aexit__(None, None, None), timeout=5
+                )
+            connection.session.close()

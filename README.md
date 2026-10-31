@@ -12,7 +12,8 @@ and local development services are available. Monitor creation initializes its
 workspace and queues an initial check. An administrator-controlled worker researches queued checks
 and saves observations with source evidence. Checks also update knowledge, evaluate alert decisions, and conditionally compose
 one sourced alert digest. Scheduled collection, AI conversations, configurable
-thresholds, and external notification delivery remain planned.
+thresholds, and push notification delivery remain planned. Opt-in alert emails
+use the existing SMTP setup.
 
 ## HeadsUp local development
 
@@ -146,7 +147,15 @@ Read history remains available, and alert read state synchronizes with its notic
 Monitor pages include version-protected Pause/Activate controls. Apply migration
 `add_notifications` and restart the API and any separate workers. Existing events
 are not backfilled. See the [notification guide](docs/notifications.md) for schema,
-API, ownership, deletion semantics and tests. Email/push remain future work.
+API, ownership, deletion semantics and tests.
+
+Alert email updates are available as an explicit opt-in under **My profile →
+Email updates**. Published alerts enqueue one durable email with monitor details,
+source links, a deep link and a plain-text alternative. The API delivers these
+independently of the research queue switch using the existing `MAIL_*` settings
+and `FRONTEND_URL`. Apply `add_alert_email_delivery` and restart the API/workers.
+Historical alerts are not emailed. See the [alert email guide](docs/alert-emails.md)
+and [HTML preview](docs/examples/alert-email-preview.html). Push remains future work.
 
 ## Referral-only demo signup
 
