@@ -48,17 +48,16 @@ cors_list = [
     if origin.strip()
 ]
 
-# gatekeeper to ensure the user has read the docs and noted the major changes
-# since the last version.
+# Require the existing configuration acknowledgement before startup.
 if not get_settings().i_read_the_damn_docs:
     logger.error(
         "You didn't read the docs and change the settings in the .env file!"
     )
     logger.error(
-        "The API has changed massively since version 0.4.0 and you need to "
-        "familiarize yourself with the new breaking changes."
+        "Set I_READ_THE_DAMN_DOCS=true after reviewing the HeadsUp "
+        "configuration and setup guide."
     )
-    logger.error("See docs/important.md for information.")
+    logger.error("See docs/usage/configuration/environment.md for information.")
     sys.exit(BLIND_USER_ERROR)
 
 

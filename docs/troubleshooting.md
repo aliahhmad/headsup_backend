@@ -1,307 +1,90 @@
 # Troubleshooting
 
-Common issues and their solutions when working with the FastAPI Template.
+## API does not start
 
-## Database Issues
+Check required backend settings and logs. `SECRET_KEY` needs at least 32 characters,
+database credentials must be configured, and `I_READ_THE_DAMN_DOCS=true` satisfies
+the existing startup acknowledgement. Apply `alembic upgrade head` against the
+same database the API uses. Do not reset a populated database to fix migration state.
 
-### Database Connection Refused
+For local backing services:
 
-**Error:**
-```
-sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) could not connect to server: Connection refused
-```
-
-**Solutions:**
-
-1. **Check PostgreSQL is running:**
-   ```bash
-   # Linux/Mac
-   sudo systemctl status postgresql
-
-   # Using Docker
-   docker ps | grep postgres
-   ```
-
-2. **Verify database exists:**
-   ```bash
-   psql -U postgres -l
-   # If missing, create it:
-   psql -U postgres
-   CREATE DATABASE fastapi_template;
-   ```
-
-3. **Check `.env` settings match your database:**
-   - `DB_USER`, `DB_PASSWORD` must match PostgreSQL credentials
-   - `DB_ADDRESS` should be `localhost` for local dev
-   - `DB_PORT` should be `5432` (default PostgreSQL port)
-
-### Migration Errors
-
-**Error:**
-```
-alembic.util.exc.CommandError: Can't locate revision identified by 'xxxxx'
+```sh
+docker compose -f compose.local.yml ps
+docker compose -f compose.local.yml logs --tail=100 db
 ```
 
-**Solution:** Your migration history is out of sync. For development:
-```bash
-# Clear and reinitialize (WARNING: Deletes all data)
-api-admin db init --force
+For the deployed server, use the wrapper and [server runbook](deployment/deployment.md):
+
+```sh
+sudo docker_support/deploy/server/dc.sh ps
+sudo docker_support/deploy/server/dc.sh logs --tail=100 api db gateway
 ```
 
-For production, see [Database Migration Strategy](deployment/deployment.md#database-migration-strategy).
+## Database connection fails
 
-## Application Startup Issues
+A host API uses `127.0.0.1` and the published local port, normally 5435. The local
+API container uses Docker service `db` on 5432. Editing the password in `.env`
+does not alter an existing PostgreSQL role. Keep the original credentials or
+change the role deliberately; do not remove the data volume as a workaround.
+See [database access](operations.md#access-postgresql-and-list-tables).
 
-### Port Already in Use
+## Test database is missing
 
-**Error:**
-```
-OSError: [Errno 48] Address already in use
-```
+`headsup_test` is created only during initialization of a new local volume.
+On an older volume, inspect `\l` in `psql` and create the separate test database
+with the configured role if needed. Keep `TEST_DB_NAME` different from `DB_NAME`;
+tests recreate its tables. No valuable data belongs in the test database.
 
-**Solutions:**
+## Browser calls the wrong API or CORS fails
 
-1. **Find process using port 8000:**
-   ```bash
-   # Linux/Mac
-   lsof -i :8000
+The frontend setting is `VITE_API_URL`, without `/api` for the server deployment.
+Rebuild/redeploy after changing it. The local Vite proxy is unavailable on a static
+host. Set backend `CORS_ORIGINS` to the exact browser origin, including scheme and
+port. Set `FRONTEND_URL` consistently and recreate the server API through its update
+procedure after changing environment values.
 
-   # Kill the process
-   kill -9 <PID>
-   ```
+## Login fails or no verification email arrives
 
-2. **Use a different port:**
-   ```bash
-   api-admin serve --port 8080
-   ```
+New registrations require verification. Inspect Mailpit in local development;
+real deployments require valid SMTP. CLI-created accounts are already verified.
+Check whether the account is banned or an invitation code is required. Keep the
+API `BASE_URL` and frontend URL correct before generating another recovery email.
+Inside Docker, local Mailpit is `mailpit:1025`, not `127.0.0.1:1025`.
 
-### Module Not Found Errors
+## A check remains queued
 
-**Error:**
-```
-ModuleNotFoundError: No module named 'app'
-```
+Monitor creation and Check now enqueue work; processing is administrator-controlled.
+Check **Administration → Queue**, worker liveness, configured model key, and
+pending composition for the monitor. Automatic mode defaults to off. Use a single
+step or `api-admin worker --once` for explicit processing. Cadence does not yet
+schedule recurring checks. See [queue behavior](queue.md).
 
-**Solutions:**
+## Research succeeded but no alert appeared
 
-1. **Activate virtual environment:**
-   ```bash
-   # Using uv
-   source .venv/bin/activate  # Linux/Mac
-   .venv\Scripts\activate     # Windows
+That can be expected: no observations, empty/all-false decisions, already-published
+developments, or a final composer declining an update all produce no alert. Inspect
+`alert_processing` separately from research status. Pending/failed composition has
+its own durable job and retry policy; see [alerts](alerts.md).
 
-   # Using pip/venv
-   source venv/bin/activate   # Linux/Mac
-   venv\Scripts\activate      # Windows
-   ```
+## A worker stopped during a request
 
-2. **Reinstall dependencies:**
-   ```bash
-   uv sync  # or pip install -r requirements.txt
-   ```
+The queue heartbeat measures service liveness, not progress within a model call.
+After a hard kill, a research run can remain running and needs reconciliation.
+Do not requeue a request still executing. Composition leases can recover independently;
+SMTP delivery with an uncertain outcome is not automatically replayed.
 
-## Email Issues
+## No alert email arrived
 
-### Password Reset Not Sending Emails
+Email is opt-in in **My profile**, applies only to future alerts, and requires a
+verified eligible recipient. There is no replay when opting in later. Inspect
+`notification_deliveries` and the [delivery states](alert-emails.md). A `sent` state
+means SMTP accepted the message, not that it reached the inbox. Pausing the research
+queue does not stop the independent email loop.
 
-**Problem:** Clicked "forgot password" but no email arrives.
+## Server API root returns 404
 
-**Solutions:**
-
-1. **Check email is configured in `.env`:**
-   - All `MAIL_*` variables must be set
-   - Test with: `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`
-
-2. **Check spam folder** - emails may be flagged as spam
-
-3. **Verify SMTP credentials:**
-   ```bash
-   # Test connection manually
-   telnet smtp.gmail.com 587
-   ```
-
-4. **For development:** Check application logs at `LOG_PATH` for email errors
-
-### Email Settings Valid But Still Not Working
-
-**Common issues:**
-
-- **Gmail:** Requires "App Password" not your regular password
-- **Office365:** May require OAuth2 instead of SMTP
-- **2FA enabled:** Need app-specific password
-- Check `MAIL_STARTTLS` and `MAIL_SSL_TLS` settings match your provider
-
-## Authentication Issues
-
-### "That token is Invalid" on Every Request
-
-**Causes:**
-
-1. **SECRET_KEY changed** - All existing tokens invalidated
-   - Expected after changing SECRET_KEY
-   - Users must login again
-
-2. **Clock skew** - Server time incorrect
-   ```bash
-   # Check server time
-   date
-   ```
-
-3. **Token expired** - Default 2 hours
-   - Use refresh token to get new access token
-   - See [Authentication Flow](quick-start.md#6-authenticate-to-access-protected-endpoints)
-
-### Cannot Access Admin Panel
-
-**Error:** 404 Not Found on `/admin`
-
-**Solutions:**
-
-1. **Check admin panel is enabled in `.env`:**
-   ```bash
-   ADMIN_PAGES_ENABLED=True
-   ```
-
-2. **Verify route in settings** (if customized):
-   ```bash
-   ADMIN_PAGES_ROUTE=/admin
-   ```
-
-3. **Restart application** after changing settings
-
-## Metrics Issues
-
-### `/metrics` Returns 404
-
-**Cause:** Metrics not enabled.
-
-**Solution:** Add to `.env`:
-```bash
-METRICS_ENABLED=true
-```
-
-Restart the application.
-
-### Prometheus Not Scraping Metrics
-
-**Solutions:**
-
-1. **Check `/metrics` endpoint is accessible:**
-   ```bash
-   curl http://localhost:8000/metrics
-   ```
-
-2. **Verify Prometheus configuration** has correct target:
-   ```yaml
-   scrape_configs:
-     - job_name: 'fastapi-template'
-       static_configs:
-         - targets: ['localhost:8000']
-   ```
-
-3. **Check firewall** isn't blocking Prometheus
-
-## Performance Issues
-
-### Application Running Slowly
-
-**Common causes:**
-
-1. **DEBUG logging in production:**
-   ```bash
-   LOG_LEVEL=INFO  # or WARNING, not DEBUG
-   ```
-
-2. **Database not indexed** - Check slow query logs
-
-3. **No connection pooling** - Consider adding pgbouncer for production
-
-### High Memory Usage
-
-**Solutions:**
-
-1. **Check log retention:**
-   ```bash
-   LOG_RETENTION=7 days  # Don't keep logs forever
-   LOG_COMPRESSION=zip   # Compress rotated logs
-   ```
-
-2. **Review metrics collection** - May need sampling for high-traffic apps
-
-## Development Issues
-
-### Tests Failing
-
-**Error:** Database connection errors in tests
-
-**Solutions:**
-
-1. **Ensure test database exists:**
-   ```bash
-   psql -U postgres
-   CREATE DATABASE fastapi_template_tests;
-   ```
-
-2. **Check `TEST_DB_NAME` in `.env`** matches test database
-
-3. **Run tests with pytest:**
-   ```bash
-   pytest
-   # or
-   poe test
-   ```
-
-### Pre-commit Hooks Failing
-
-**Solutions:**
-
-1. **Install prek hooks:**
-   ```bash
-   prek install
-   ```
-
-2. **Update hooks:**
-   ```bash
-   prek autoupdate
-   ```
-
-3. **Skip hooks temporarily** (not recommended):
-   ```bash
-   git commit --no-verify
-   ```
-
-### uv or prek Will Not Pick Up New Package Releases
-
-This template sets `exclude-newer = "7 days"` in `pyproject.toml`, so `uv`
-ignores packages uploaded in the last seven days. The `prek` dependency hooks use
-the same project setting when they update `uv.lock`, `requirements.txt`, and
-`requirements-dev.txt`.
-
-This is intentional: it gives newly published packages a short settling period
-before they are allowed into the project, reducing the risk from compromised,
-yanked, or accidentally broken releases.
-
-If you need the newest packages immediately, remove the `exclude-newer` setting
-from the `[tool.uv]` section in `pyproject.toml`, then run:
-
-```bash
-uv lock
-poe pre
-```
-
-## Still Having Issues?
-
-If your problem isn't listed here:
-
-1. **Check application logs** at `LOG_PATH` (default: `./logs/api.log`)
-2. **Enable DEBUG logging** temporarily:
-   ```bash
-   LOG_LEVEL=DEBUG
-   LOG_CATEGORIES=ALL
-   ```
-3. **Review the [configuration guide](usage/configuration/environment.md)** for all settings
-4. **Open an issue** on [GitHub](https://github.com/seapagan/fastapi-template/issues) with:
-   - Error message (full traceback)
-   - Relevant log entries
-   - Your environment (OS, Python version)
-   - Steps to reproduce
+That is intentional in the server defaults. Test `/heartbeat` for reachability and
+`/docs` for the schema UI. If local health works but the public hostname fails,
+check the existing tunnel's origin port and whether its connector runs on the
+host or inside Docker. Preserve other application routes.

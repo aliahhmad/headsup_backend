@@ -1,142 +1,55 @@
-# Project Organization
+# Project structure
 
-This project has been deliberately laid out in a specific way. To avoid long
-complicated files which are difficult to debug, functionality is separated out
-in files and modules depending on the specific functionality.
+The workspace has separate `api/` and `web/` Git repositories and shared product
+documents in the parent `docs/` directory.
 
-## Application Structure (app/)
+## Backend
 
-### Files
+| Path | Responsibility |
+| --- | --- |
+| `app/main.py` | FastAPI application, middleware, and service lifespan |
+| `app/config/` | Environment settings, validation, and metadata |
+| `app/database/` | Database engines and session dependencies |
+| `app/models/` | SQLAlchemy tables, ownership, and constraints |
+| `app/schemas/` | Request/response schemas and model-output contracts |
+| `app/resources/` | HTTP endpoints and authorization dependencies |
+| `app/managers/` | Domain transactions, queue dispatch, model integration/prompts, research, alerts, and delivery |
+| `app/commands/` | `api-admin` CLI, including users, worker, and schema export |
+| `app/migrations/` | Alembic schema history |
+| `app/templates/` | Account pages and HTML/plain-text email templates |
+| `tests/` | Unit and integration tests |
+| `scripts/` | Developer utilities, including account-email previews |
+| `docs/` | Current feature, setup, and operations guides |
+| `compose.local.yml` | PostgreSQL and Mailpit for a host development API |
+| `docker-compose.yml`, `Dockerfile` | All-container local development |
+| `Dockerfile.server` | Non-root runtime image without development dependencies |
+| `docker_support/deploy/server/` | Server environment generator, Compose, gateway, backup/update tools |
 
-**app/main.py** - The main controlling file for the FastAPI application. This
-should be as clean and short as possible with all functionality moved out to
-modules. Contains the FastAPI app instance, middleware registration, and route
-setup.
+## Domain records
 
-**app/api_admin.py** - The CLI entry point for administrative tasks using Typer.
-Aggregates all command groups (db, user, custom, etc.) and provides the main
-CLI interface. Accessible via the `api-admin` command (or `python -m app.api_admin`).
+A user owns monitors. Each monitor owns check runs, observations and source evidence,
+monitor memories/revisions, and published alerts. Observations belong to runs;
+several observations can support one alert. Development keys identify published
+changes across runs independently of per-response `finding_1` references.
 
-**app/logs.py** - Application logging setup using loguru with category-based
-control. Configures log formatting, handlers, and category filtering based on
-the `LOG_CATEGORIES` setting.
+`alert_candidates` retains knowledge-stage decisions, `alert_jobs` stores durable
+composition work, and `alert_observations` links published evidence and provides
+the development deduplication ledger. Research completion and composition completion
+are separate transactions and states.
 
-### Directories
+`run_model_calls` captures administrator-visible request attempts. `queue_control`
+stores the shared automatic switch and heartbeat; `queue_executions` audits manual
+and automatic dispatch attempts. Notifications use typed JSON payloads and optional
+monitor scope. `notification_preferences` stores email opt-in, and
+`notification_deliveries` is the email outbox. See each feature guide for fields
+and constraints rather than inferring behavior from table names.
 
-**app/admin/** - This directory contains the Admin interface setup. You can add
-more models here, or modify the existing ones. The Admin interface is used to
-manage the database content, and is available at the `/admin` route.
+Chat/message and personal-memory structures exist, but conversational processing
+is deferred. Persisted monitor cadence is not yet a recurring scheduler.
 
-**app/commands/** - This directory can hold any **CLI** commands you need to
-write, for example populating a database, create a superuser or other
-housekeeping tasks.
+## Frontend
 
-**app/config/** - Handles the API settings and defaults, also the Metadata
-customization. If you add more settings (for example in the `.env` file) you
-should also add them to the `config/settings.py` or `config/metadata.py` with
-suitable defaults. Non-secret (or depoloyment independent) settings should go
-in the `metadata` file, while secrets (or deployment specific) should go in the
-`settings` and `.env` files
-
-**app/cache/** - Contains response caching infrastructure for improved API
-performance (opt-in, disabled by default). This module provides:
-
-- `decorators.py` - `@cached()` decorator wrapper with project defaults
-- `key_builders.py` - Functions to generate cache keys (user-scoped,
-  paginated, etc.)
-- `invalidation.py` - Helpers to clear cache when data changes
-
-Caching is enabled via `CACHE_ENABLED=true` and supports both in-memory
-(development) and Redis (production) backends. See the [Caching and
-Performance](usage/caching.md) documentation for usage details.
-
-**app/database/** - This module controls database setup and configuration, and
-should generally not need to be touched.
-
-**app/managers/** - This directory contains individual files for each
-'group' of functionality. They contain a Class that should take care of the
-actual work needed for the routes. Check out the `managers/auth.py` and
-`managers/user.py`
-
-**app/metrics/** - Contains Prometheus metrics implementation for application
-observability. This module provides opt-in metrics collection via the
-`METRICS_ENABLED` setting. Includes:
-
-- `instrumentator.py` - Configures HTTP performance metrics (requests, latency,
-  size)
-- `custom.py` - Business metrics for auth failures, API keys, and login attempts
-- `namespace.py` - Centralized metric namespace computation from `api_title`
-  setting
-
-All metrics are prefixed with `{api_title}_` (e.g.,
-`api_template_auth_failures_total`) to prevent naming collisions in multi-service
-deployments. The `/metrics` endpoint exposes these metrics in Prometheus format
-when enabled.
-
-**app/middleware/** - Contains custom middleware components that process
-requests/responses. Currently includes:
-
-- `logging.py` - `LoggingMiddleware` which logs HTTP requests in uvicorn
-  format when the `REQUESTS` log category is enabled
-- `cache_logging.py` - `CacheLoggingMiddleware` which logs cache hits/misses
-  with timing when the `CACHE` log category is enabled
-
-All middleware is controlled via `LOG_CATEGORIES` in settings. To add custom
-middleware, create a new file in this directory and register it in `main.py`
-using `app.add_middleware()`. See the [FastAPI middleware
-docs](https://fastapi.tiangolo.com/tutorial/middleware/){:target="_blank"} for
-details.
-
-**app/migrations/** - We use
-[Alembic](https://github.com/sqlalchemy/alembic){:target="_blank"} to handle the
-database migrations. Check out their pages for more info. See instructions under
-[Development](usage/configuration/environment.md) for more info.
-
-**app/models/** - Any database models used should be defined here along with
-supporting files (eq the `models/enums.py`) used here. Models are
-specified using the SQLAlchemy format, see `models/user.py` for an
-example.
-
-**app/resources/** - Contains the actual Route resources used by your API.
-Basically, each grouped set of routes should have its own file, which then
-should be imported into the `resources/routes.py` file. That file is
-automatically imported into the main application, so there are no more changes
-needed. Check out the routes in `resources/user.py` for a good example. Note
-that the routes contain minimal actual logic, instead they call the required
-functionality from the Manager (UserManager in `managers/user.py` in this case).
-
-**app/schemas/** - Contains all `request` and `response` schemas used in the
-application, as usual with a separate file for each group. The Schemas are
-defined as [Pydantic](https://pydantic-docs.helpmanual.io/){:target="_blank"}
-Classes.
-
-**app/templates/** - Any HTML templates. We have one by default - used only when
-the root of the API is accessed using a Web Browser (otherwise a simple
-informational JSON response is returned). You can edit the template in
-`templates/index.html` for your own API.
-
-## Project Root
-
-### Directories
-
-**docs/** - Contains the project documentation in Markdown format. This includes
-user guides, development documentation, and API reference materials. Documentation
-is built using MkDocs and can be viewed locally with `mkdocs serve`.
-
-**tests/** - Contains the complete test suite organized into subdirectories:
-
-- `tests/unit/` - Unit tests for individual components and managers
-- `tests/integration/` - Integration tests for API endpoints and workflows
-- `tests/cli/` - Tests for CLI commands
-
-All tests use pytest and can be run with `pytest` or `poe test`.
-
-**static/** - Any static files used by HTML templates for example CSS or
-JS files.
-
-**prometheus-test/** - Optional Docker Compose setup for local Prometheus server
-testing. This directory is not part of the application but provides developer
-convenience for testing metrics collection locally. Contains `docker-compose.yml`
-and `prometheus.yml` configuration files. Run `docker-compose up` in this
-directory to start a Prometheus instance that scrapes the application's
-`/metrics` endpoint.
+`web/src/App.jsx` connects routes, session state, and page components. `src/lib/api.js`
+handles API requests and authentication, `src/lib/routes.js` describes navigation,
+`src/pages/` provides screens, and `src/components/` provides shared and feature UI.
+The React admin pages use authenticated APIs; they are separate from SQLAdmin.

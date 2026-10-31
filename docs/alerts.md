@@ -7,8 +7,9 @@ monitor Updates panel are implemented. Optional [alert email updates](alert-emai
 are delivered through a durable outbox. Push delivery and periodic scheduling remain deferred. The observation/source/summary limits from the existing research
 pipeline are unchanged; the proposed cost restrictions have not been applied.
 
-See the [overall design and schema](../../docs/HeadsUp_Design_Decisions_and_Schema.md#510-alert)
-and [worker guide](monitor-worker.md).
+See the [project structure](project-organization.md#domain-records) and
+[worker guide](monitor-worker.md). The broader design document is
+`docs/HeadsUp_Design_Decisions_and_Schema.md` in the parent workspace.
 
 ## Workflow
 
@@ -354,11 +355,12 @@ and [handling incomplete reasoning responses](https://developers.openai.com/api/
 
 ## Inspect published storage
 
-```bash
-docker compose exec db psql -U headsup -d headsup -c '\d alerts'
-docker compose exec db psql -U headsup -d headsup -c 'SELECT id, title, created_at FROM alerts ORDER BY created_at DESC LIMIT 20;'
-```
+Use the [database console guide](operations.md#access-postgresql-and-list-tables)
+for local or server access, then run:
 
+```sql
+SELECT id, title, created_at FROM alerts ORDER BY created_at DESC LIMIT 20;
+```
 
 ## In-app notification publication
 

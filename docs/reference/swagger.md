@@ -1,11 +1,18 @@
-# Interactive API Docs
+# Interactive API documentation
 
-The interative API below is auto-generated from the OpenAPI specification for
-this API.
+The running API provides its current schemas and interactive request tools:
 
-!!! note
-    There is not a real API or Database backing this, so the 'Try It Out'
-    option is disabled. You can access a working version of this by installing
-    the template and running the FastAPI server, then visiting the `/docs` path.
+| Resource | Local URL |
+| --- | --- |
+| Swagger UI | <http://localhost:8000/docs> |
+| ReDoc | <http://localhost:8000/redoc> |
+| OpenAPI JSON | <http://localhost:8000/openapi.json> |
 
-<swagger-ui src="./openapi.json">
+For a deployed API, replace `http://localhost:8000` with its public API origin.
+The static documentation site does not execute requests against a bundled demo
+API or ship a copied schema.
+
+Log in through `POST /login/`, copy the returned `token`, and use Swagger UI's
+**Authorize** dialog to supply the bearer token. Interactive operations affect
+the selected API's real database and may enqueue work. Use a development account
+and monitor when exploring write endpoints.

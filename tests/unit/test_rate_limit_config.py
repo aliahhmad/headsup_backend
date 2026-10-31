@@ -29,7 +29,7 @@ class TestRateLimitConfig:
             ), f"Invalid period format: {period}"
 
     def test_conservative_limits(self) -> None:
-        """Ensure limits match SECURITY-REVIEW.md requirements."""
+        """Ensure authentication endpoints retain their configured limits."""
         assert RateLimits.REGISTER == "3/hour"
         assert RateLimits.LOGIN == "5/15minutes"
         assert RateLimits.FORGOT_PASSWORD == "3/hour"  # noqa: S105

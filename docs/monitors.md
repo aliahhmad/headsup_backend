@@ -1,8 +1,9 @@
 # Monitor backend
 
 HeadsUp provides authenticated monitor configuration, initialized workspace
-records, and durable check requests. The separately started [research
-worker](monitor-worker.md) polls queued checks every five seconds, calls OpenAI,
+records, and durable check requests. The API-hosted [research
+worker](monitor-worker.md), controlled through [queue administration](queue.md),
+polls queued checks every five seconds, calls OpenAI,
 and saves observations and source evidence. Runs with findings also merge current
 `monitor_knowledge` and save a run-linked revision when it changes. Monitor context
 and personal memory are not changed. Alert decisions and conditional digest

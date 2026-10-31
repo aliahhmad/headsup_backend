@@ -1,8 +1,4 @@
-"""Test the 'gatekeeper' function.
-
-This function ensures that the user has read the documentation, specifically the
-changes in the API stucture, datrabase and more since version 0.4.0
-"""
+"""Check that startup requires the configuration acknowledgement."""
 
 import subprocess
 
@@ -15,8 +11,8 @@ class TestCLI:
     def test_getkeeper(self, monkeypatch) -> None:
         """Test the gatekeeper.
 
-        We set the env variable 'I_HAVE_READ_THE_DOCS' to false and run the
-        typer app. We expect the app to exit with a 666 code.
+        Set I_READ_THE_DAMN_DOCS to false and run Uvicorn. Startup must
+        exit with the configured acknowledgement error code.
         """
         monkeypatch.setenv("I_READ_THE_DAMN_DOCS", "False")
 

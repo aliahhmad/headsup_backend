@@ -1,114 +1,75 @@
-# Local Development
+# Development and testing
 
-## Run a Server
+Use the [quick start](../quick-start.md) for the host API with Docker-backed
+PostgreSQL and Mailpit. The checked-in Python version is 3.13, dependencies are
+managed by `uv.lock`, and the server image also uses Python 3.13.
 
-The [uvicorn](https://www.uvicorn.org/){:target="_blank"} ASGI server is
-automatically installed when you install the project dependencies. This can be
-used for testing the API during development. There is a built-in command to run
-this easily :
+## Run the API on the host
 
-```console
-$ api-admin serve
+From `api/`:
+
+```sh
+uv sync --locked --python 3.13
+uv run --locked alembic upgrade head
+uv run --locked api-admin serve
 ```
 
-This will by default run the server on <http://localhost:8000>, and reload after
-any change to the source code. You can add options to change this
+For explicit Uvicorn options:
 
-```console
-$ api-admin serve --help
-
-Usage: api-admin serve [OPTIONS]
-
-  Run a development server from the command line.
-
-  This will auto-refresh on any changes to the source in real-time.
-
-Options:
-  --port   -p   INTEGER   Define the port to run the server on  [default: 8000]
-  --host   -h   TEXT      Define the interface to run the server on.  [default:
-                          localhost]
-  --reload --no-reload    Enable auto-reload on code changes [default: True]
-  --help                  Show this message and exit.
+```sh
+uv run --locked uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload --reload-dir app
 ```
 
-If you need more control, you can run `uvicorn` directly :
+Restart after changing environment settings. The API hosts both the managed
+research queue service and the independent alert-email delivery loop. You do not
+need an additional worker process for administrator queue controls.
 
-```console
-uvicorn app.main:app --reload
+## Run the API in Docker
+
+The root `docker-compose.yml` is for local development and mounts source code.
+It is separate from the immutable server image and deployment Compose file.
+For local email capture, set `MAIL_SERVER=mailpit` in the environment consumed by
+the container; keep the Mailpit port/TLS/auth values from the quick start.
+
+```sh
+docker compose up -d --build --wait
+docker compose logs -f --tail=100 api
+docker compose exec api uv run --locked api-admin user create --admin
 ```
 
-The above command starts the server running on <http://localhost:8000>, and it
-will automatically reload when it detects any changes as you develop.
+The local image currently uses the Python version declared in `Dockerfile`
+(3.14), while host/server development targets 3.13. The API binds loopback port
+8000. Host and all-container modes use the same local project and database volume;
+stop the host API before starting the container API on that port. For optional
+Redis, enable the `cache` profile and corresponding settings explicitly.
 
-**Note: Neither of these are suitable to host a project in production, see the
-[Deployment](../deployment/deployment.md) section for information.**
+Stop containers with `docker compose down`; retain the database volume. Switching
+the API back to the host requires `MAIL_SERVER=127.0.0.1` again when using Mailpit.
 
-## Run Tests
+## Run tests
 
-This API has **Unit** and **Integration** tests using
-'[Pytest](https://docs.pytest.org){:target="_blank"}'
+Configure `TEST_DB_NAME=headsup_test` with local database credentials and keep it
+different from `DB_NAME`. The local Compose initialization creates this database
+for a new volume. The test suite recreates tables there and must never target
+valuable data. Database connection credentials/host/port come from `DB_*`, with
+only the name selected by `TEST_DB_NAME`.
 
-!!! danger "Database and Environment Setup"
-
-    **Before running tests, you MUST have a valid `.env` file** with the
-    following required settings:
-
-    - `SECRET_KEY` - Must be at least 32 characters long
-    - `DB_USER` - Your PostgreSQL database username
-    - `DB_PASSWORD` - Your PostgreSQL database password
-    - `DB_ADDRESS` - Database host (usually `localhost`)
-    - `DB_PORT` - Database port (usually `5432`)
-    - `DB_NAME` - Your production database name
-    - `TEST_DB_NAME` - Your test database name (defaults to `api-template-test`,
-      **recommended to set explicitly**)
-
-    Tests will use the same database credentials (DB_USER/DB_PASSWORD) but
-    connect to the TEST_DB_NAME database instead. **Do not use a production
-    database for testing** as the test database will be cleared before each test
-    run.
-
-    Copy `.env.example` to `.env` and update with your local values. See the
-    [Configuration](../usage/configuration/setup.md) section for full setup
-    instructions.
-
-    The Python test suite runs locally against this configured test database.
-
-To run these from within the virtual environment use the `pytest` command:
-
-```console
-$ pytest
-Test session starts (platform: linux, Python 3.11.3, pytest 7.3.1, pytest-sugar 0.9.7)
-Using --randomly-seed=2090593217
-
-...
-
- tests/integration/test_protected_user_routes.py ✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓
- tests/integration/test_user_routes.py ✓✓✓✓✓✓✓✓✓✓✓✓✓✓
-
-...
-
-
-------------------------------------------------------------
-TOTAL                            518     10    98%
-Coverage HTML written to dir htmlcov
-
-
-Results (36.04s):
-     161 passed
-
+```sh
+uv run --locked pytest -n 2
+uv run --locked pytest tests/unit --no-cov
 ```
 
-if you wish to disable the coverage display temporarily use :
+Use a test file or `-k` expression for a focused change. The offline worker fixtures
+exercise persistence without model calls but write to the configured application
+database, so they are a different workflow from tests.
 
-```console
-$ pytest --no-cov
-```
+## Frontend and checks
 
-You can also run the Unit or Integration tests independently using `pytest -m
-unit` or `pytest -m integration`.
+From `web/`, use `npm ci`, `npm run dev`, and `npm run build`. See its README for
+routing, API configuration, and static hosting. Source changes should be checked
+with the relevant test/build commands and the repository's configured quality
+checks; do not interpret a documentation build as application validation.
 
-See the
-[Pytest how-tos][pytest-how-tos]{:target="_blank"}
-for more information
-
-[pytest-how-tos]: https://docs.pytest.org/en/latest/how-to/index.html
+GitHub Actions currently cover Ruff, mypy, prek hooks, Zizmor, dependency review,
+and CodeQL. There is no hosted application-test or coverage-upload workflow.
+The available backend Poe tasks are defined in `pyproject.toml`.

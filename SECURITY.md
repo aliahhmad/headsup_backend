@@ -1,35 +1,28 @@
-# Security Policy
+# Security policy
 
-## Supported Versions
+HeadsUp is under active development. There is no separate long-term support or
+upstream-template version support policy. Use the revision maintained for your
+installation and review application, dependency, migration, and infrastructure
+changes before updating.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| >=0.8.0 | :white_check_mark: |
+## Reporting a vulnerability
 
-Until we reach a 1.0 milestone, we will generally only support the latest
-release of the project. If you are having issues with an older version, please
-upgrade to the latest version and see if the issue is resolved. If not, please
-open an Issue.
+Report security issues privately to the maintainers of this HeadsUp repository.
+Use the repository's private vulnerability reporting facility if enabled, or an
+existing private maintainer contact. A dedicated public security email address is
+not configured here. Do not send HeadsUp reports to the original template author.
 
-If the latest full release does not help, try the latest alpha or beta version
-(if available) or the `main` branch on the repository to see if that fixes your
-problem (often the `main` branch will have several merged PR's or fixes that
-have not yet been released). If not, please open an Issue.
+Provide the affected revision, steps to reproduce, expected and actual behavior,
+and a synthetic example when possible. Do not post credentials, tokens, private
+monitor content, or exploit details in a public issue. Ordinary non-sensitive bugs
+can use the repository's normal issue tracker.
 
-## Reporting a Vulnerability
+## Operating an installation
 
-If you find a security vulnerability in this code, [please open an
-Issue](https://github.com/seapagan/fastapi-template/issues) and report it. It
-may be already known to us and we may be working on a fix. If not, we will work
-with you to understand the issue and fix it. Generally we would annouce any
-known vulnerability in the
-[Discussions](https://github.com/seapagan/fastapi-template/discussions)
-forum.
+Use separate secrets and databases per environment, preserve ownership checks,
+keep the server database private, and follow the backup/update procedure. Run
+schema migrations with the application revision they accompany. Private model
+request traces and backups contain account data and require restricted access.
+See the [deployment runbook](docker_support/deploy/server/README.md).
 
-We use **Renovate** for dependency management and **Dependabot** for automatic
-security updates. If a security vulnerability is found in a dependency,
-Dependabot will issue a PR to fix this as soon as an updated version of the
-dependency is available. We will merge these PRs as soon as they are available.
-
-Note that this code is provided as-is, and is not guaranteed to be
-suitable for any purpose.  Use at your own risk.
+This policy does not constitute a security audit or a guarantee of production readiness.

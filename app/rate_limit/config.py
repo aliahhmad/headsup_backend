@@ -6,7 +6,7 @@ from typing import ClassVar
 class RateLimits:
     """Rate limit definitions for authentication endpoints.
 
-    Following conservative limits from SECURITY-REVIEW.md #3.
+    Endpoint limits applied when RATE_LIMIT_ENABLED is true.
     Format: "{count}/{period}" where period can be:
     - second, minute, hour, day
     """

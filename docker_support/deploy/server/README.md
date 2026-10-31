@@ -282,7 +282,7 @@ own backup and compatibility plan.
 - CORS fails: allow the exact browser origin and recreate the API through the
   update procedure. Do not work around it with wildcard origins.
 - Email links use the wrong host: correct `API_URL`/`FRONTEND_URL`, recreate, and
-  generate a new email. Review `docs/alert-emails.md` for delivery statuses.
+  generate a new email. Review the alert-email feature guide for delivery statuses.
 - Research stays queued: configure the server-side OpenAI key and explicitly
   enable the managed queue. Periodic monitor enqueueing is still not implemented.
 - Image CLI fails only on sample seeding: sample data uses development-only Faker;

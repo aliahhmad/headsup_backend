@@ -1,41 +1,42 @@
-# HeadsUp API
+# HeadsUp documentation
 
-**Stay informed without having to keep checking.**
+HeadsUp researches topics described by users, retains sourced observations and
+monitor knowledge, and publishes meaningful changes as alerts. This documentation
+covers the current backend and its connected React application.
 
-HeadsUp is an AI-powered personal monitoring assistant concept: users describe
-what matters to them, and the product aims to follow relevant sources, remember
-what has happened, and surface meaningful changes with supporting sources.
+## Getting started
 
-## Current backend
+1. Follow the [local quick start](quick-start.md) to start the database, email inbox,
+   API, and frontend, then create an administrator.
+2. Create a monitor and use [queue controls](queue.md) to process its initial check.
+3. Inspect its findings and [alerts](alerts.md), or use the
+   [run dashboard](run-dashboard.md) to examine the complete pipeline.
+4. For a server, use the [deployment runbook](deployment/deployment.md).
 
-This repository provides the FastAPI backend foundation, including:
+## Feature guides
 
-- User registration, login, email verification, and password recovery
-- JWT authentication, refresh tokens, and API keys
-- User management and an optional administration panel
-- PostgreSQL persistence and Alembic migrations
-- Optional caching, rate limiting, and Prometheus metrics
-- A local development email inbox powered by Mailpit
+| Area | Guide |
+| --- | --- |
+| Monitor ownership, lifecycle, and checks | [Monitors](monitors.md) |
+| Research, evidence, and knowledge updates | [Research worker](monitor-worker.md) |
+| Decisions, deduplication, and final updates | [Alerts](alerts.md) |
+| Bell and inbox events | [In-app notifications](notifications.md) |
+| Profile opt-in, SMTP, and delivery recovery | [Alert emails](alert-emails.md) |
+| Administrator processing controls | [Queue management](queue.md) |
+| Run context, memory, evidence, and request traces | [Run dashboard](run-dashboard.md) |
+| Registration, verification, and administration | [Accounts](accounts.md) |
 
-Topic monitors, scheduled collection, AI analysis, and change notifications are
-planned features. They are not implemented by the authentication foundation.
+## Operations and development
 
-## Local development
+- [Configuration](usage/configuration/environment.md)
+- [Database and service operations](operations.md)
+- [Development and testing](development/local.md)
+- [Documentation maintenance](development/documentation.md)
+- [Project structure](project-organization.md)
+- [API reference](reference/api.md)
+- [Troubleshooting](troubleshooting.md)
+- [Deferred capabilities](future.md)
 
-Follow the **HeadsUp local development** section of the repository README for
-the current setup. The API docs run at <http://localhost:8000/docs>, and local
-email is captured at <http://localhost:8025>.
-
-Docker containers are named `headsup-db` and `headsup-mailpit`; full Docker mode
-also runs `headsup-api`. Both modes retain the `headsup-api-local_postgres-data`
-volume.
-
-## About these guides
-
-The detailed guides document infrastructure inherited from
-[FastAPI Template](https://github.com/seapagan/fastapi-template). Some examples
-still use the original template's names and URLs. Use the repository README
-and `.env.example` for HeadsUp's current names and configuration.
-
-Public author, contact email, website, and repository URL are intentionally
-unconfigured. Original template copyright notices remain in the MIT license.
+Periodic schedule enqueueing and chat processing are not implemented. Automatic
+queue processing consumes work already queued by creation or Check now. It defaults
+to off in a new database and resumes the saved setting after restarts.
