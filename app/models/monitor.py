@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -265,6 +266,157 @@ class ObservationSource(Identity, Base):
     retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     evidence_excerpt: Mapped[str | None] = mapped_column(Text)
     content_hash: Mapped[str | None] = mapped_column(Text)
+
+
+class Alert(Identity, Base):
+    """One published digest per run, with mutable user state."""
+
+    __tablename__ = "alerts"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["monitor_run_id", "monitor_id"],
+            ["monitor_runs.id", "monitor_runs.monitor_id"],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("monitor_run_id"),
+        UniqueConstraint("id", "monitor_run_id", "monitor_id"),
+        CheckConstraint("title ~ '[^[:space:]]'", name="nonblank_title"),
+        CheckConstraint("body ~ '[^[:space:]]'", name="nonblank_body"),
+        Index("ix_alerts_monitor_created", "monitor_id", "created_at"),
+        Index("ix_alerts_monitor_run_id", "monitor_run_id"),
+    )
+
+    monitor_id: Mapped[UUID] = mapped_column(
+        ForeignKey("monitors.id", ondelete="CASCADE")
+    )
+    monitor_run_id: Mapped[UUID] = mapped_column(Uuid)
+    title: Mapped[str] = mapped_column(Text)
+    body: Mapped[str] = mapped_column(Text)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dismissed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+
+
+class AlertObservation(Identity, Base):
+    """Evidence links and the ledger of developments actually published."""
+
+    __tablename__ = "alert_observations"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["alert_id", "monitor_run_id", "monitor_id"],
+            ["alerts.id", "alerts.monitor_run_id", "alerts.monitor_id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["observation_id", "monitor_run_id"],
+            ["observations.id", "observations.monitor_run_id"],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("observation_id"),
+        UniqueConstraint("monitor_id", "development_key"),
+        CheckConstraint(
+            "development_key ~ '[^[:space:]]'", name="nonblank_development_key"
+        ),
+        Index("ix_alert_observations_alert_id", "alert_id"),
+    )
+
+    alert_id: Mapped[UUID] = mapped_column(Uuid)
+    monitor_id: Mapped[UUID] = mapped_column(Uuid)
+    monitor_run_id: Mapped[UUID] = mapped_column(Uuid)
+    observation_id: Mapped[UUID] = mapped_column(Uuid)
+    development_key: Mapped[str] = mapped_column(Text)
+
+
+class AlertCandidate(Identity, Base):
+    """Durable model decisions and their disposition, including negatives."""
+
+    __tablename__ = "alert_candidates"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["monitor_run_id", "monitor_id"],
+            ["monitor_runs.id", "monitor_runs.monitor_id"],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["observation_id", "monitor_run_id"],
+            ["observations.id", "observations.monitor_run_id"],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("monitor_run_id", "observation_ref"),
+        CheckConstraint(
+            "status IN ('pending', 'rejected', 'duplicate', 'excluded', "
+            "'published')",
+            name="valid_status",
+        ),
+        CheckConstraint(
+            "(should_alert AND development_key ~ '[^[:space:]]') OR "
+            "(NOT should_alert AND development_key IS NULL)",
+            name="decision_matches_key",
+        ),
+        CheckConstraint(
+            "NOT should_alert OR development_key IS NOT NULL",
+            name="positive_key_required",
+        ),
+    )
+
+    monitor_id: Mapped[UUID] = mapped_column(Uuid)
+    monitor_run_id: Mapped[UUID] = mapped_column(Uuid)
+    observation_id: Mapped[UUID] = mapped_column(Uuid)
+    observation_ref: Mapped[str] = mapped_column(Text)
+    should_alert: Mapped[bool] = mapped_column(Boolean)
+    what_changed: Mapped[str] = mapped_column(Text)
+    why_it_matters: Mapped[str] = mapped_column(Text)
+    development_key: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16))
+
+
+class AlertJob(Identity, Base):
+    """Recoverable composition work, independent of research success."""
+
+    __tablename__ = "alert_jobs"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["monitor_run_id", "monitor_id"],
+            ["monitor_runs.id", "monitor_runs.monitor_id"],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("monitor_run_id"),
+        CheckConstraint(
+            "status IN ('pending', 'processing', 'published', 'skipped', "
+            "'failed', 'cancelled')",
+            name="valid_status",
+        ),
+        CheckConstraint("attempt_count >= 0", name="nonnegative_attempts"),
+        CheckConstraint(
+            "(status = 'processing' AND lease_token IS NOT NULL AND "
+            "lease_expires_at IS NOT NULL) "
+            "OR (status <> 'processing' AND lease_token IS NULL AND "
+            "lease_expires_at IS NULL)",
+            name="lease_matches_state",
+        ),
+        Index("ix_alert_jobs_due", "status", "next_attempt_at"),
+        Index("ix_alert_jobs_monitor_id", "monitor_id"),
+    )
+
+    monitor_id: Mapped[UUID] = mapped_column(Uuid)
+    monitor_run_id: Mapped[UUID] = mapped_column(Uuid)
+    monitor_version: Mapped[int] = mapped_column(BigInteger)
+    status: Mapped[str] = mapped_column(String(16))
+    input_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, server_default=func.now()
+    )
+    lease_token: Mapped[UUID | None] = mapped_column(Uuid)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    reason_code: Mapped[str | None] = mapped_column(Text)
+    error_code: Mapped[str | None] = mapped_column(Text)
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
 
 
 class MemoryRevision(Identity, Base):

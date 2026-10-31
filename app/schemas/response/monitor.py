@@ -107,7 +107,45 @@ class ObservationResponse(BaseModel):
     sources: list[ObservationSourceResponse]
 
 
+class AlertResponse(BaseModel):
+    """Published digest content and user state."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    monitor_id: UUID
+    monitor_run_id: UUID
+    title: str
+    body: str
+    created_at: datetime
+    read_at: datetime | None
+    dismissed_at: datetime | None
+
+
+class AlertDetailResponse(AlertResponse):
+    """A digest with each included observation and its durable sources."""
+
+    observations: list[ObservationResponse]
+
+
+class AlertProcessingResponse(BaseModel):
+    """Composition can be pending/failed while research has succeeded."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    status: Literal[
+        "pending", "processing", "published", "skipped", "failed", "cancelled"
+    ]
+    reason_code: str | None
+    error_code: str | None
+    attempt_count: int
+    next_attempt_at: datetime
+    completed_at: datetime | None
+
+
 class MonitorRunDetailResponse(MonitorRunResponse):
     """Execution state and evidence-backed findings from this run."""
 
     observations: list[ObservationResponse]
+    alert_processing: AlertProcessingResponse | None = None
+    alert: AlertResponse | None = None

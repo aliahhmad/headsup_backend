@@ -5,8 +5,9 @@ records, and durable check requests. The separately started [research
 worker](monitor-worker.md) polls queued checks every five seconds, calls OpenAI,
 and saves observations and source evidence. Runs with findings also merge current
 `monitor_knowledge` and save a run-linked revision when it changes. Monitor context
-and personal memory are not changed. Alerts, chat processing, and periodic
-schedule enqueueing remain deferred.
+and personal memory are not changed. Alert decisions and conditional digest
+composition are implemented; chat processing and periodic schedule enqueueing
+remain deferred. See the [alert guide](alerts.md) for the complete flow.
 
 ## Setup and authorization
 
@@ -14,7 +15,11 @@ Apply `alembic upgrade head` before running the updated API. The
 `add_monitor_foundation` migration adds `monitors`, `chats`, `messages`,
 `memories`, `memory_revisions`, and `monitor_runs`. The subsequent
 `add_observation_evidence` migration adds `observations` and
-`observation_sources`. Existing user and API-key tables are unchanged. User
+`observation_sources`. The `add_alerts` migration adds the original
+single-observation `alerts` table. The subsequent `add_alert_digests` migration
+adds candidates, composition jobs, and multi-observation links, replacing the
+original single-observation columns. See the [alert API and behavior](alerts.md). Existing user and
+API-key tables are unchanged. User
 ownership uses the existing integer `users.id`; monitoring records use UUIDs.
 
 All routes use the existing verified, non-banned user authentication through a
@@ -111,8 +116,8 @@ retains them for a future retention/purge workflow; it does not permanently eras
 them or modify shared user-profile memory. Automatic purging is not implemented.
 
 Running checks are not marked successful or silently rewritten by configuration
-changes. A future worker must recheck monitor state, ownership, configuration,
-and memory versions before starting and before committing outputs.
+changes. Research and composition workers recheck monitor state, ownership,
+configuration, and memory versions before starting and accepting outputs.
 
 ## Check now and history
 
@@ -147,5 +152,7 @@ The worker claims it and commits observations, sources, accepted knowledge chang
 their revisions, and successful completion atomically. Read the current knowledge
 and its version through `GET /monitors/{id}`; run snapshots retain the inputs used,
 not the newly produced knowledge. No run-start or completion endpoint is publicly exposed. Run detail
-includes `observations`, each with its `sources`. Alert and delivery models remain
-a subsequent implementation step.
+includes `observations`, each with its `sources`, plus separate `alert_processing`
+state and an optional published `alert`. Published digests and their evidence are
+available through the [alert endpoints](alerts.md#api-and-monitor-ui). External
+email/push delivery remains deferred.

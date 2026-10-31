@@ -1,4 +1,4 @@
-"""Explicit worker process for queued research; no scheduler or alerts."""
+"""Explicit research and recoverable alert-composition worker."""
 
 import asyncio
 from pathlib import Path
@@ -13,6 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.config.settings import get_settings
 from app.database.db import async_engine, async_session
 from app.logs import logger
+from app.managers.alert import AlertComposer
 from app.managers.monitor_worker import (
     KnowledgeMerger,
     Researcher,
@@ -20,6 +21,7 @@ from app.managers.monitor_worker import (
 )
 from app.managers.research import OpenAIResearch
 from app.schemas.research import (
+    AlertComposition,
     KnowledgeUpdate,
     ResearchFixture,
     ResearchResult,
@@ -45,24 +47,51 @@ class FixtureResearch:
         return self.result
 
     async def merge_knowledge(
-        self, objective: str, previous_knowledge: str, result: ResearchResult
+        self,
+        objective: str,
+        previous_knowledge: str,
+        result: ResearchResult,
+        *,
+        context: dict[str, Any] | None = None,
     ) -> KnowledgeUpdate:
         """Use an explicit full snapshot instead of invoking a paid model."""
-        del objective, previous_knowledge, result
+        del objective, previous_knowledge, result, context
         if self.fixture.knowledge_update is None:
             message = "Fixture has no knowledge update"
             raise ValueError(message)
         return self.fixture.knowledge_update
 
+    async def compose_alert(
+        self,
+        objective: str,
+        candidates: list[dict[str, Any]],
+        context: dict[str, Any],
+    ) -> AlertComposition:
+        """Return an offline composition without network calls."""
+        del objective, candidates, context
+        if self.fixture.alert_composition is None:
+            msg = "Fixture has no alert composition"
+            raise ValueError(msg)
+        return self.fixture.alert_composition
+
 
 async def poll(
-    researcher: Researcher, knowledge_merger: KnowledgeMerger, *, once: bool
+    researcher: Researcher,
+    knowledge_merger: KnowledgeMerger,
+    alert_composer: AlertComposer | None = None,
+    *,
+    once: bool,
+    resume_alerts: bool = True,
 ) -> None:
     """Check immediately, then sleep five seconds between queue checks."""
     while True:
         try:
             run_id = await process_next(
-                async_session, researcher, knowledge_merger
+                async_session,
+                researcher,
+                knowledge_merger,
+                alert_composer,
+                resume_alerts=resume_alerts,
             )
         except SQLAlchemyError as exc:
             logger.error("Worker database failure ({})", type(exc).__name__)
@@ -84,10 +113,16 @@ async def run_worker(fixture: Path | None, *, once: bool) -> None:
         if fixture is not None:
             rprint(
                 "Fixture mode: saves test findings and replaces "
-                "monitor knowledge."
+                "monitor knowledge; may publish a synthetic test alert."
             )
             provider = FixtureResearch(fixture)
-            await poll(provider, provider.merge_knowledge, once=once)
+            await poll(
+                provider,
+                provider.merge_knowledge,
+                provider.compose_alert,
+                once=once,
+                resume_alerts=False,
+            )
         else:
             settings = get_settings()
             if not settings.openai_api_key.get_secret_value().strip():
@@ -96,7 +131,10 @@ async def run_worker(fixture: Path | None, *, once: bool) -> None:
             async with httpx.AsyncClient() as client:
                 live_provider = OpenAIResearch(client, settings)
                 await poll(
-                    live_provider, live_provider.merge_knowledge, once=once
+                    live_provider,
+                    live_provider.merge_knowledge,
+                    live_provider.compose_alert,
+                    once=once,
                 )
     finally:
         await async_engine.dispose()

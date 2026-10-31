@@ -15,6 +15,173 @@ from app.schemas.research import (
     ResearchResult,
 )
 
+
+@pytest.mark.parametrize(
+    "problem",
+    ["missing_decisions", "string_boolean", "unknown_ref", "duplicate_ref"],
+)
+async def test_alert_decisions_are_strictly_validated(problem: str) -> None:
+    """Invalid decisions cannot silently become an all-false response."""
+    decision = {
+        "observation_ref": "finding_1",
+        "should_alert": False,
+        "what_changed": "No material change",
+        "why_it_matters": "Background only",
+        "development_key": None,
+    }
+    payload = {
+        "content": "Knowledge",
+        "change_reason": "Reason",
+        "alert_decisions": [decision],
+    }
+    if problem == "missing_decisions":
+        del payload["alert_decisions"]
+    elif problem == "string_boolean":
+        decision["should_alert"] = "false"
+    elif problem == "unknown_ref":
+        decision["observation_ref"] = "invented"
+    else:
+        payload["alert_decisions"].append(decision.copy())
+    response = extraction_response()
+    response["output"][0]["content"][0]["text"] = json.dumps(payload)
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=response)
+
+    finding = ResearchResult.model_validate(
+        {
+            "observations": [
+                {
+                    "summary": "Finding",
+                    "sources": [{"source_url": "https://example.com"}],
+                }
+            ]
+        }
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handle)
+    ) as client:
+        with pytest.raises(
+            ResearchError, match="openai_knowledge_invalid_response"
+        ):
+            await OpenAIResearch(client, get_settings()).merge_knowledge(
+                "Objective", "Old", finding
+            )
+
+
+@pytest.mark.parametrize("positive", [True, False])
+async def test_composition_payload_uses_separate_model(
+    *, positive: bool
+) -> None:
+    """Compose supplied candidates using a separate model without tools."""
+    requests = []
+    payload = {
+        "should_alert": positive,
+        "reason": "Selection reason",
+        "title": "Update" if positive else None,
+        "body": "Message" if positive else None,
+        "observation_refs": ["finding_1"] if positive else [],
+    }
+    response = extraction_response()
+    response["output"][0]["content"][0]["text"] = json.dumps(payload)
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(json.loads(request.content))
+        return httpx.Response(200, json=response)
+
+    settings = get_settings().model_copy(
+        update={"openai_alert_model": "test-composer"}
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handle)
+    ) as client:
+        result = await OpenAIResearch(client, settings).compose_alert(
+            "Objective",
+            [{"observation_ref": "finding_1", "summary": "Finding"}],
+            {
+                "memories": [
+                    {"kind": "monitor_context", "content": "Accepted context"}
+                ]
+            },
+        )
+    assert result.should_alert is positive
+    assert requests[0]["model"] == "test-composer"
+    assert requests[0]["store"] is False
+    assert "tools" not in requests[0]
+    assert json.loads(requests[0]["input"])["monitor_context"] == [
+        "Accepted context"
+    ]
+    assert requests[0]["text"]["format"]["strict"] is True
+
+
+@pytest.mark.parametrize(
+    "problem",
+    [
+        "unknown_ref",
+        "duplicate_ref",
+        "false_content",
+        "blank_title",
+        "string_boolean",
+        "refusal",
+        "incomplete",
+        "http_error",
+    ],
+)
+async def test_invalid_composition_is_rejected(problem: str) -> None:
+    """Invalid composition is a retryable error, never a published alert."""
+    payload = {
+        "should_alert": True,
+        "reason": "Reason",
+        "title": "Title",
+        "body": "Body",
+        "observation_refs": ["finding_1"],
+    }
+    if problem == "unknown_ref":
+        payload["observation_refs"] = ["invented"]
+    elif problem == "duplicate_ref":
+        payload["observation_refs"] *= 2
+    elif problem == "false_content":
+        payload["should_alert"] = False
+    elif problem == "blank_title":
+        payload["title"] = "   "
+    elif problem == "string_boolean":
+        payload["should_alert"] = "true"
+    response = extraction_response()
+    response["output"][0]["content"][0]["text"] = json.dumps(payload)
+    if problem == "refusal":
+        response["output"][0]["content"] = [{"type": "refusal"}]
+    if problem == "incomplete":
+        response["status"] = "incomplete"
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            429 if problem == "http_error" else 200, json=response
+        )
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handle)
+    ) as client:
+        with pytest.raises(ResearchError, match="openai_"):
+            await OpenAIResearch(client, get_settings()).compose_alert(
+                "Objective", [{"observation_ref": "finding_1"}], {}
+            )
+
+
+async def test_empty_composition_makes_no_request() -> None:
+    """Reject empty candidates without making a provider request."""
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        pytest.fail("Empty candidates must not make a provider request")
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handle)
+    ) as client:
+        with pytest.raises(ValueError, match="No eligible"):
+            await OpenAIResearch(client, get_settings()).compose_alert(
+                "Objective", [], {}
+            )
+
+
 pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
 
 
@@ -184,6 +351,7 @@ def knowledge_response(
         {
             "content": content,
             "change_reason": "Added the supported Company A finding.",
+            "alert_decisions": [],
         }
     )
     return response
@@ -218,14 +386,26 @@ async def test_knowledge_merge_payload_and_full_snapshot() -> None:
     assert json.loads(payload["input"]) == {
         "objective": "Find jobs",
         "previous_knowledge": "Old finding.",
-        "observations": result.model_dump(mode="json")["observations"],
+        "observations": [
+            {
+                "observation_ref": "finding_1",
+                **result.observations[0].model_dump(mode="json"),
+            }
+        ],
+        "monitor_context": [],
+        "history": {},
+        "is_initial": False,
     }
     assert payload["store"] is False
     assert "tools" not in payload
     schema = payload["text"]["format"]
     assert schema["strict"] is True
     assert schema["schema"]["additionalProperties"] is False
-    assert set(schema["schema"]["required"]) == {"content", "change_reason"}
+    assert set(schema["schema"]["required"]) == {
+        "content",
+        "change_reason",
+        "alert_decisions",
+    }
 
 
 @pytest.mark.parametrize(

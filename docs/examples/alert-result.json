@@ -1,0 +1,35 @@
+{
+  "observations": [
+    {
+      "summary": "Synthetic test data: Company A opened internship applications.",
+      "sources": [{"source_url": "https://example.com/company-a", "source_title": "Synthetic Company A source"}]
+    },
+    {
+      "summary": "Synthetic test data: Company B moved its application deadline earlier.",
+      "sources": [{"source_url": "https://example.com/company-b", "source_title": "Synthetic Company B source"}]
+    }
+  ],
+  "knowledge_update": {
+    "content": "Synthetic test data: Company A applications are open and Company B changed its deadline. This is an offline fixture, not actual news.",
+    "change_reason": "Offline alert pipeline exercise.",
+    "alert_decisions": [
+      {
+        "observation_ref": "finding_1", "should_alert": true,
+        "what_changed": "Synthetic opening", "why_it_matters": "A sample actionable development.",
+        "development_key": "fixture:company-a:applications-open"
+      },
+      {
+        "observation_ref": "finding_2", "should_alert": true,
+        "what_changed": "Synthetic deadline change", "why_it_matters": "A second sample actionable development.",
+        "development_key": "fixture:company-b:deadline-changed"
+      }
+    ]
+  },
+  "alert_composition": {
+    "should_alert": true,
+    "reason": "Two synthetic actionable developments for a pipeline test.",
+    "title": "Offline test: two application updates",
+    "body": "Synthetic test data: Company A opened applications and Company B changed its deadline. These are fictional examples for testing only.",
+    "observation_refs": ["finding_1", "finding_2"]
+  }
+}

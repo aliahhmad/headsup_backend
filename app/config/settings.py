@@ -97,6 +97,7 @@ class Settings(BaseSettings):
         ),
     )
     openai_model: str = "gpt-5.4-mini"
+    openai_alert_model: str = "gpt-5.4-nano"
 
     # Setup the TEST Postgresql database.
     # Note: Safe defaults for local/CI testing only

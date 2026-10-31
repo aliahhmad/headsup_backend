@@ -5,7 +5,7 @@
 import asyncio
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import ANY, AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -446,7 +446,7 @@ async def test_next_run_merges_previous_knowledge(
     knowledge_merger.return_value = updated
     await process_next(test_sessionmaker, research, knowledge_merger)
     knowledge_merger.assert_awaited_with(
-        monitor.objective, knowledge_update().content, findings()
+        monitor.objective, knowledge_update().content, findings(), context=ANY
     )
     research_context = research.await_args.args[1]
     assert any(
@@ -569,8 +569,13 @@ async def test_memory_change_during_merge_discards_all_outputs(
     """Final validation covers changes during the additional model request."""
 
     async def merge(
-        objective: str, previous_knowledge: str, result: ResearchResult
+        objective: str,
+        previous_knowledge: str,
+        result: ResearchResult,
+        *,
+        context: dict[str, Any] | None = None,
     ) -> KnowledgeUpdate:
+        del context
         async with test_sessionmaker() as session, session.begin():
             knowledge = (
                 await session.scalars(

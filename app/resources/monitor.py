@@ -6,14 +6,23 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi_pagination import Page, Params
 from fastapi_pagination.ext.sqlalchemy import apaginate
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.db import get_database
 from app.managers import monitor as manager
 from app.managers.security import get_current_user
-from app.models.monitor import MonitorRun, Observation, ObservationSource
+from app.models.monitor import (
+    Alert,
+    AlertJob,
+    AlertObservation,
+    MonitorRun,
+    Observation,
+    ObservationSource,
+    utc_now,
+)
 from app.models.user import User
+from app.schemas.request.alert import AlertFilters, AlertStateUpdate
 from app.schemas.request.monitor import (
     MonitorCheckRequest,
     MonitorCreate,
@@ -21,6 +30,8 @@ from app.schemas.request.monitor import (
     MonitorUpdate,
 )
 from app.schemas.response.monitor import (
+    AlertDetailResponse,
+    AlertResponse,
     MonitorDetailResponse,
     MonitorResponse,
     MonitorRunDetailResponse,
@@ -171,6 +182,12 @@ async def get_run(
         )
     return MonitorRunDetailResponse(
         **MonitorRunResponse.model_validate(run).model_dump(),
+        alert_processing=await db.scalar(
+            select(AlertJob).where(AlertJob.monitor_run_id == run.id)
+        ),
+        alert=await db.scalar(
+            select(Alert).where(Alert.monitor_run_id == run.id)
+        ),
         observations=[
             ObservationResponse(
                 id=observation.id,
@@ -183,3 +200,137 @@ async def get_run(
             for observation in observations
         ],
     )
+
+
+@router.get("/{monitor_id}/alerts/counts")
+async def alert_counts(
+    monitor_id: UUID, user: CurrentUser, db: Database
+) -> dict[str, int]:
+    """Count unread, undismissed alerts for an owned monitor."""
+    await manager.owned_monitor(monitor_id, user.id, db)
+    count = await db.scalar(
+        select(func.count(Alert.id)).where(
+            Alert.monitor_id == monitor_id,
+            Alert.read_at.is_(None),
+            Alert.dismissed_at.is_(None),
+        )
+    )
+    return {"unread": count or 0}
+
+
+@router.get("/{monitor_id}/alerts")
+async def list_alerts(
+    monitor_id: UUID,
+    user: CurrentUser,
+    db: Database,
+    params: Annotated[Params, Depends()],
+    filters: Annotated[AlertFilters, Query()],
+) -> Page[AlertResponse]:
+    """Paginate owned published digests, newest first."""
+    await manager.owned_monitor(monitor_id, user.id, db)
+    query = select(Alert).where(Alert.monitor_id == monitor_id)
+    if filters.unread:
+        query = query.where(Alert.read_at.is_(None))
+    if not filters.include_dismissed:
+        query = query.where(Alert.dismissed_at.is_(None))
+    return cast(
+        "Page[AlertResponse]",
+        await apaginate(
+            db, query.order_by(Alert.created_at.desc(), Alert.id.desc()), params
+        ),
+    )
+
+
+async def owned_alert(
+    monitor_id: UUID,
+    alert_id: UUID,
+    user: User,
+    db: AsyncSession,
+    *,
+    lock: bool = False,
+) -> Alert:
+    """Resolve child IDs only through an accessible owned parent."""
+    await manager.owned_monitor(monitor_id, user.id, db, lock=lock)
+    query = select(Alert).where(
+        Alert.id == alert_id, Alert.monitor_id == monitor_id
+    )
+    if lock:
+        query = query.with_for_update()
+    alert = await db.scalar(query)
+    if alert is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Alert not found")
+    return alert
+
+
+@router.get("/{monitor_id}/alerts/{alert_id}")
+async def get_alert(
+    monitor_id: UUID, alert_id: UUID, user: CurrentUser, db: Database
+) -> AlertDetailResponse:
+    """Read the digest with all included observations and saved source links."""
+    alert = await owned_alert(monitor_id, alert_id, user, db)
+    observations = list(
+        await db.scalars(
+            select(Observation)
+            .join(
+                AlertObservation,
+                AlertObservation.observation_id == Observation.id,
+            )
+            .where(AlertObservation.alert_id == alert.id)
+            .order_by(Observation.created_at, Observation.id)
+        )
+    )
+    sources = await db.scalars(
+        select(ObservationSource)
+        .join(
+            AlertObservation,
+            AlertObservation.observation_id == ObservationSource.observation_id,
+        )
+        .where(AlertObservation.alert_id == alert.id)
+        .order_by(ObservationSource.created_at, ObservationSource.id)
+    )
+    grouped: dict[UUID, list[ObservationSourceResponse]] = {}
+    for source in sources:
+        grouped.setdefault(source.observation_id, []).append(
+            ObservationSourceResponse.model_validate(source)
+        )
+    return AlertDetailResponse(
+        **AlertResponse.model_validate(alert).model_dump(),
+        observations=[
+            ObservationResponse(
+                **{
+                    name: getattr(observation, name)
+                    for name in (
+                        "id",
+                        "monitor_run_id",
+                        "item_key",
+                        "summary",
+                        "created_at",
+                    )
+                },
+                sources=grouped.get(observation.id, []),
+            )
+            for observation in observations
+        ],
+    )
+
+
+@router.patch("/{monitor_id}/alerts/{alert_id}")
+async def update_alert_state(
+    monitor_id: UUID,
+    alert_id: UUID,
+    data: AlertStateUpdate,
+    user: CurrentUser,
+    db: Database,
+) -> AlertResponse:
+    """Set read/dismissed state without changing published content."""
+    alert = await owned_alert(monitor_id, alert_id, user, db, lock=True)
+    for field in data.model_fields_set:
+        column = "read_at" if field == "read" else "dismissed_at"
+        value = (
+            (getattr(alert, column) or utc_now())
+            if getattr(data, field)
+            else None
+        )
+        setattr(alert, column, value)
+    await db.flush()
+    return AlertResponse.model_validate(alert)

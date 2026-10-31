@@ -10,8 +10,16 @@ from typing import TYPE_CHECKING, Any, Protocol
 from sqlalchemy import select
 
 from app.logs import logger
+from app.managers.alert import (
+    AlertComposer,
+    alert_history,
+    persist_decisions,
+    process_next_alert,
+)
+from app.managers.monitor_state import can_execute, memory_snapshot
 from app.managers.research import ResearchError
 from app.models.monitor import (
+    AlertJob,
     Memory,
     MemoryRevision,
     Monitor,
@@ -45,7 +53,12 @@ class KnowledgeMerger(Protocol):
     """Produce full knowledge snapshots without writing database state."""
 
     async def __call__(
-        self, objective: str, previous_knowledge: str, result: ResearchResult
+        self,
+        objective: str,
+        previous_knowledge: str,
+        result: ResearchResult,
+        *,
+        context: dict[str, Any] | None = None,
     ) -> KnowledgeUpdate:
         """Preserve useful prior knowledge and merge evidence-backed changes."""
         ...
@@ -63,40 +76,6 @@ class ClaimedRun:
     context: dict[str, Any]
 
 
-def can_execute(monitor: Monitor, run: MonitorRun) -> bool:
-    """Paused monitors permit manual checks; archived/deleted ones do not."""
-    return monitor.deleted_at is None and (
-        monitor.status == "active"
-        or (monitor.status == "paused" and run.trigger == "manual")
-    )
-
-
-async def memory_snapshot(
-    monitor: Monitor, session: AsyncSession
-) -> dict[str, Any]:
-    """Select this monitor's owned context consistently under row locks."""
-    memories = await session.scalars(
-        select(Memory)
-        .where(
-            Memory.monitor_id == monitor.id,
-            Memory.user_id == monitor.user_id,
-        )
-        .order_by(Memory.id)
-        .with_for_update()
-    )
-    return {
-        "memories": [
-            {
-                "memory_id": str(memory.id),
-                "kind": memory.kind,
-                "version": memory.version,
-                "content": memory.content,
-            }
-            for memory in memories
-        ]
-    }
-
-
 async def claim_next(
     sessions: async_sessionmaker[AsyncSession],
 ) -> ClaimedRun | None:
@@ -106,7 +85,15 @@ async def claim_next(
             await session.execute(
                 select(MonitorRun, Monitor)
                 .join(Monitor, Monitor.id == MonitorRun.monitor_id)
-                .where(MonitorRun.status == "queued")
+                .where(
+                    MonitorRun.status == "queued",
+                    ~select(AlertJob.id)
+                    .where(
+                        AlertJob.monitor_id == Monitor.id,
+                        AlertJob.status.in_(["pending", "processing"]),
+                    )
+                    .exists(),
+                )
                 .order_by(MonitorRun.created_at, MonitorRun.id)
                 .limit(1)
                 .with_for_update(of=Monitor, skip_locked=True)
@@ -126,10 +113,15 @@ async def claim_next(
         if run.attempt_count == 0:
             run.objective_snapshot = monitor.objective
             run.monitor_version = monitor.version
-            run.context_snapshot = current_context
+            run.context_snapshot = {
+                **current_context,
+                "history": await alert_history(monitor.id, session),
+                "is_initial": run.trigger == "initial",
+            }
         elif (
             run.monitor_version != monitor.version
-            or run.context_snapshot != current_context
+            or run.context_snapshot.get("memories")
+            != current_context["memories"]
         ):
             run.status = "cancelled"
             run.error_code = "superseded_inputs"
@@ -195,7 +187,8 @@ async def save_result(
         if (
             not can_execute(monitor, run)
             or monitor.version != claimed.monitor_version
-            or await memory_snapshot(monitor, session) != claimed.context
+            or (await memory_snapshot(monitor, session))["memories"]
+            != claimed.context.get("memories")
         ):
             run.status = "cancelled"
             run.error_code = "superseded_inputs"
@@ -208,8 +201,9 @@ async def save_result(
 
         retrieved_at = utc_now()
         findings: dict[str, Observation] = {}
+        references: dict[str, Observation] = {}
         evidence_keys: set[tuple[str, str]] = set()
-        for finding in result.observations:
+        for index, finding in enumerate(result.observations, start=1):
             key = stable_key(" ".join(finding.summary.split()))
             if key not in findings:
                 observation = Observation(
@@ -220,6 +214,7 @@ async def save_result(
                 session.add(observation)
                 await session.flush()
                 findings[key] = observation
+            references[f"finding_{index}"] = findings[key]
             for source in finding.sources:
                 url = str(source.source_url)
                 source_key = stable_key(url)
@@ -259,7 +254,13 @@ async def save_result(
                         source_run_id=run.id,
                     )
                 )
-        # Sources and accepted knowledge must be durable before success.
+        # Accept knowledge before recording post-merge versions for composition.
+        await session.flush()
+        await persist_decisions(
+            session, monitor, run, knowledge_update, references
+        )
+        # Evidence, knowledge, decisions, and durable composition work
+        # commit together.
         await session.flush()
         run.status = "succeeded"
         run.completed_at = utc_now()
@@ -284,7 +285,10 @@ async def research_and_merge(
         code = "monitor_knowledge_missing"
         raise ResearchError(code)
     update = await knowledge_merger(
-        claimed.objective, knowledge[0]["content"], result
+        claimed.objective,
+        knowledge[0]["content"],
+        result,
+        context=claimed.context,
     )
     return result, update
 
@@ -293,8 +297,15 @@ async def process_next(
     sessions: async_sessionmaker[AsyncSession],
     researcher: Researcher,
     knowledge_merger: KnowledgeMerger,
+    alert_composer: AlertComposer | None = None,
+    *,
+    resume_alerts: bool = True,
 ) -> UUID | None:
     """Execute at most one queued check; failed checks are not auto-retried."""
+    if alert_composer is not None and resume_alerts:
+        alert_run_id = await process_next_alert(sessions, alert_composer)
+        if alert_run_id is not None:
+            return alert_run_id
     claimed = await claim_next(sessions)
     if claimed is None:
         return None
@@ -305,6 +316,10 @@ async def process_next(
             timeout=RESEARCH_TIMEOUT_SECONDS,
         )
         await save_result(sessions, claimed, result, knowledge_update)
+        if alert_composer is not None:
+            await process_next_alert(
+                sessions, alert_composer, run_id=claimed.id
+            )
     except asyncio.CancelledError:
         await asyncio.shield(fail_run(sessions, claimed, "worker_interrupted"))
         raise

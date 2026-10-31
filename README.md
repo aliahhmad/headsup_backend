@@ -10,8 +10,9 @@ This repository contains the FastAPI backend foundation. Authentication, user
 management, API keys, password recovery, administration, monitor management,
 and local development services are available. Monitor creation initializes its
 workspace and queues an initial check. An explicit worker researches queued checks
-and saves observations with source evidence. Scheduled collection, AI
-conversations, memory updates, thresholds, and notifications remain planned.
+and saves observations with source evidence. Checks also update knowledge, evaluate alert decisions, and conditionally compose
+one sourced alert digest. Scheduled collection, AI conversations, configurable
+thresholds, and external notification delivery remain planned.
 
 ## HeadsUp local development
 
@@ -110,6 +111,17 @@ dry run without API charges.
 See [the monitor API guide](docs/monitors.md) for request examples, lifecycle
 rules, limits, and the boundaries of this first backend step. The endpoints also
 appear under **Monitors** in `/docs`.
+
+Alert generation is implemented: the knowledge merge returns explicit decisions,
+and only eligible true decisions invoke a separate digest-composition call.
+Empty/all-false decisions stop alert processing without generating an alert.
+Durable jobs retry composition without repeating research, and each run can publish
+at most one digest with multiple evidence links. Read it in the monitor Updates
+panel or through authenticated alert endpoints. Set `OPENAI_ALERT_MODEL` to choose
+the composer (default `gpt-5.4-nano`); research uses `OPENAI_MODEL` separately.
+No new cost limits were applied. See the [alert guide](docs/alerts.md) for migration,
+fixtures, API routes, recovery behavior, and remaining limitations. Apply the
+new `add_alert_digests` migration with the Alembic command above.
 
 ## Referral-only demo signup
 
