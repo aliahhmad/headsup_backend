@@ -226,8 +226,13 @@ Send `{"read": true}` to mark read, `{"read": false}` to clear it, or
 are rejected. Dismissed alerts are hidden from the default list; reading and
 dismissing are independent actions.
 
-The monitor's Updates panel polls for published digests, displays source evidence,
-marks an alert read when evidence is opened, and supports dismissal and pagination.
+The monitor's Updates panel keeps a paginated history of all published digests,
+including records previously dismissed through the legacy controls. There is no
+frontend dismissal action. Open an update's title or its Open update button to
+read the complete message and source evidence in a larger dialog. Opening it
+marks it read without removing it from the list; close the dialog or press Escape
+to return to the history. The backend dismissal fields/endpoints remain available
+for compatibility, but the frontend does not use them to change or filter history.
 The check panel distinguishes successful research from pending, skipped, failed,
 cancelled, or published alert processing. Generated content is rendered as text.
 
