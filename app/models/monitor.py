@@ -231,6 +231,41 @@ class MonitorRun(Identity, Base):
     error_code: Mapped[str | None] = mapped_column(String(120))
 
 
+class RunModelCall(Identity, Base):
+    """Application request traces; credentials and raw responses are excluded."""
+
+    __tablename__ = "run_model_calls"
+    __table_args__ = (
+        CheckConstraint(
+            "stage IN ('research', 'extraction', 'knowledge', 'composition')",
+            name="valid_stage",
+        ),
+        CheckConstraint(
+            "status IN ('running', 'succeeded', 'failed', 'cancelled')",
+            name="valid_status",
+        ),
+        CheckConstraint("attempt_number >= 1", name="positive_attempt"),
+        CheckConstraint("duration_ms >= 0", name="nonnegative_duration"),
+        Index("ix_run_model_calls_run_created", "monitor_run_id", "created_at"),
+    )
+
+    monitor_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("monitor_runs.id", ondelete="CASCADE")
+    )
+    stage: Mapped[str] = mapped_column(String(16))
+    attempt_number: Mapped[int] = mapped_column(Integer)
+    model: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16), default="running")
+    request_payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    response_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    http_status: Mapped[int | None] = mapped_column(Integer)
+    error_code: Mapped[str | None] = mapped_column(Text)
+    duration_ms: Mapped[int | None] = mapped_column(BigInteger)
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+
+
 class Observation(Identity, Base):
     """One immutable development discovered during a check."""
 

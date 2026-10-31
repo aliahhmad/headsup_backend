@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any
 import httpx
 from pydantic import ValidationError
 
+from app.managers.run_trace import trace_request
+
 from app.schemas.research import (
     AlertComposition,
     Evidence,
@@ -111,26 +113,31 @@ class OpenAIResearch:
         self.client = client
         self.settings = settings
 
-    async def _request(self, **payload: object) -> dict[str, Any]:
+    async def _request(
+        self, *, stage: str, **payload: object
+    ) -> dict[str, Any]:
         """Submit a Responses request without logging sensitive error bodies."""
-        response = await self.client.post(
-            RESPONSES_URL,
-            headers={
-                "Authorization": (
-                    "Bearer " + self.settings.openai_api_key.get_secret_value()
-                ),
-            },
-            json={
-                "model": self.settings.openai_model,
-                "store": False,
-                **payload,
-            },
-            timeout=120,
-        )
-        if response.is_error:
-            code = f"openai_http_{response.status_code}"
-            raise ResearchError(code)
-        data: dict[str, Any] = response.json()
+        body = {"model": self.settings.openai_model, "store": False, **payload}
+        async with trace_request(stage, body) as record:
+            response = await self.client.post(
+                RESPONSES_URL,
+                headers={
+                    "Authorization": "Bearer "
+                    + self.settings.openai_api_key.get_secret_value()
+                },
+                json=body,
+                timeout=120,
+            )
+            record.capture(
+                response.status_code, {}, response.headers.get("x-request-id")
+            )
+            if response.is_error:
+                code = f"openai_http_{response.status_code}"
+                raise ResearchError(code)
+            data: dict[str, Any] = response.json()
+            record.capture(
+                response.status_code, data, response.headers.get("x-request-id")
+            )
         return data
 
     async def __call__(
@@ -154,6 +161,7 @@ class OpenAIResearch:
     ) -> ResearchResult:
         """Keep the evidence-discovery and consolidation stages explicit."""
         research = await self._request(
+            stage="research",
             instructions=(
                 "Research the monitoring objective using web search. "
                 "Use relevant supplied context and previous knowledge. "
@@ -192,6 +200,7 @@ class OpenAIResearch:
             return ResearchResult(observations=[])
 
         extracted = await self._request(
+            stage="extraction",
             instructions=(
                 "Consolidate this cited research into observations. "
                 "One observation represents one development, supported by "
@@ -249,6 +258,7 @@ class OpenAIResearch:
         """Merge supported findings into a complete knowledge snapshot."""
         try:
             response = await self._request(
+                stage="knowledge",
                 instructions=(
                     "Maintain the accumulated knowledge for this monitor. "
                     "Return the COMPLETE updated knowledge, not just new facts "
@@ -344,6 +354,7 @@ class OpenAIResearch:
             raise ValueError(msg)
         try:
             response = await self._request(
+                stage="composition",
                 model=self.settings.openai_alert_model,
                 instructions=(
                     "Decide whether these eligible developments collectively "

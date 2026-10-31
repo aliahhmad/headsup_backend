@@ -123,6 +123,16 @@ No new cost limits were applied. See the [alert guide](docs/alerts.md) for migra
 fixtures, API routes, recovery behavior, and remaining limitations. Apply the
 new `add_alert_digests` migration with the Alembic command above.
 
+Administrators can inspect executions across accounts at **Administration →
+Monitor runs** (`/admin/runs`). The dashboard includes filters, lifecycle/alert
+state, historical memory inputs, run-linked revisions, evidence and digests.
+Migration `add_run_model_calls` enables request-stage traces for future live
+worker calls, including exact request bodies without authentication headers,
+timings and reported token usage. Restart the API and separately running workers
+after applying it. Older runs retain snapshots/outputs but have no reconstructed
+request log. See the [run dashboard guide](docs/run-dashboard.md) for scope,
+admin-only endpoints, verification limits and suggested next additions.
+
 ## Referral-only demo signup
 
 To restrict public signup to invited demo users, configure the backend:

@@ -89,6 +89,22 @@ def migrate_and_backfill(connection) -> None:
         )
         digest.upgrade()
         other = uuid4()
+        trace_migration = scripts.get_revision("add_run_model_calls").module
+        trace_migration.upgrade()
+        connection.execute(
+            text("""INSERT INTO run_model_calls
+            (id, monitor_run_id, stage, attempt_number, model, status, request_payload)
+            VALUES (gen_random_uuid(), :run, 'research', 1, 'test-model', 'running', '{}')"""),
+            values,
+        )
+        assert (
+            connection.scalar(text("SELECT count(*) FROM run_model_calls")) == 1
+        )
+        trace_migration.downgrade()
+        assert (
+            connection.scalar(text("SELECT title FROM alerts"))
+            == "Original title"
+        )
         values["other"] = other
         connection.execute(
             text("""INSERT INTO observations

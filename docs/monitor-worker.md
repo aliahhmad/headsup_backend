@@ -18,6 +18,13 @@ recovery, and [future cost controls](alerts.md#observation-and-request-size-budg
 Existing observation limits are unchanged and no new token caps have been applied.
 The queue poll is not a monitor's research cadence.
 
+The [administrator run dashboard](run-dashboard.md) shows work across accounts.
+Apply `add_run_model_calls` and restart the worker to capture future request
+stages, exact application JSON bodies, timing and reported usage. Request traces
+exclude authentication headers and raw response bodies. Old runs and offline
+fixtures are not backfilled. Trace storage is best effort and does not change
+the research/alert transaction boundaries or make additional model requests.
+
 ## Start the worker
 
 Run from `api/`, using the same environment and database as the API:

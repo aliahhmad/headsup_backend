@@ -13,6 +13,7 @@ from sqlalchemy import and_, or_, select
 from app.logs import logger
 from app.managers.monitor_state import can_execute, memory_snapshot
 from app.managers.research import ResearchError
+from app.managers.run_trace import trace_run
 from app.models.monitor import (
     Alert,
     AlertCandidate,
@@ -206,6 +207,7 @@ class ClaimedAlert:
     objective: str
     context: dict[str, Any]
     candidates: list[dict[str, Any]]
+    attempt_number: int
 
 
 def finish_job(job: AlertJob, status: str, reason: str) -> None:
@@ -377,6 +379,7 @@ async def claim_alert(
             run.objective_snapshot,
             job.input_snapshot,
             payload,
+            job.attempt_count,
         )
 
 
@@ -490,10 +493,13 @@ async def process_next_alert(
     if claimed is None:
         return None
     try:
-        result = await asyncio.wait_for(
-            composer(claimed.objective, claimed.candidates, claimed.context),
-            timeout=COMPOSITION_TIMEOUT_SECONDS,
-        )
+        async with trace_run(sessions, claimed.run_id, claimed.attempt_number):
+            result = await asyncio.wait_for(
+                composer(
+                    claimed.objective, claimed.candidates, claimed.context
+                ),
+                timeout=COMPOSITION_TIMEOUT_SECONDS,
+            )
         await save_composition(sessions, claimed, result)
     except asyncio.CancelledError:
         await asyncio.shield(

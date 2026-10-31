@@ -10,6 +10,7 @@ from app.resources import (
     home,
     monitor,
     registration,
+    run_dashboard,
     user,
 )
 
@@ -21,6 +22,7 @@ api_router.include_router(api_key.router)
 api_router.include_router(heartbeat.router)
 api_router.include_router(registration.router)
 api_router.include_router(monitor.router)
+api_router.include_router(run_dashboard.router)
 
 if not get_settings().no_root_route:
     api_router.include_router(home.router)

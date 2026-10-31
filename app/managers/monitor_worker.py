@@ -18,6 +18,7 @@ from app.managers.alert import (
 )
 from app.managers.monitor_state import can_execute, memory_snapshot
 from app.managers.research import ResearchError
+from app.managers.run_trace import trace_run
 from app.models.monitor import (
     AlertJob,
     Memory,
@@ -311,10 +312,11 @@ async def process_next(
         return None
     logger.info("Researching monitor run {}", claimed.id)
     try:
-        result, knowledge_update = await asyncio.wait_for(
-            research_and_merge(claimed, researcher, knowledge_merger),
-            timeout=RESEARCH_TIMEOUT_SECONDS,
-        )
+        async with trace_run(sessions, claimed.id, claimed.attempt):
+            result, knowledge_update = await asyncio.wait_for(
+                research_and_merge(claimed, researcher, knowledge_merger),
+                timeout=RESEARCH_TIMEOUT_SECONDS,
+            )
         await save_result(sessions, claimed, result, knowledge_update)
         if alert_composer is not None:
             await process_next_alert(

@@ -268,6 +268,10 @@ schemas, ownership, concurrent claims, expired leases, rollback, retries,
 exhaustion, stale inputs, and migration backfill/downgrade guards. Live factual
 accuracy and alert quality still require representative human-reviewed evaluation.
 
+The [administrator run dashboard](run-dashboard.md) links each run to its saved
+decisions, composition state, actual recorded requests, memory snapshots and
+published digest. Request tracing applies to future live calls, not old runs.
+
 ## Cost and deferred capabilities
 
 The separate composition call is conditional and uses focused candidate inputs.
